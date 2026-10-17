@@ -54,6 +54,11 @@ run 99 BW_SESSION="$SESSION" -- get password "fake-pw-gitlab-2Lm#" --nointeracti
 run 0 BW_SESSION="$SESSION" -- sync --nointeraction
 run 0 -- lock --nointeraction
 run 1 BW_SESSION="$SESSION" -- list items --nointeraction  # locked again
+echo '{"fail": {"logout": "Logout failed."}}' > "$data/fake-config.json"
+run 1 -- logout --nointeraction                           # injected failure
+echo "$out" | grep -q 'Logout failed.' || { echo "FAIL: injected failure printed '$out'"; exit 1; }
+rm "$data/fake-config.json"
+run 0 -- logout --nointeraction
 
 # exit 97: no BITWARDENCLI_APPDATA_DIR
 set +e; env -i PATH=/usr/bin:/bin "$bw" status --nointeraction >/dev/null 2>&1; code=$?; set -e

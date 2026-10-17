@@ -22,6 +22,7 @@ Config keys (fake-config.json):
   master_password, session_key, email, client_id, client_secret, version,
   two_factor_code   if set, password login needs --method 0 --code <value>
   offline           true -> login and sync fail with a network error
+  fail              {"logout": "message"}: the command prints the message to stderr and exits 1
   delay             {"sync": 70, "*": 1} seconds to sleep before a command
   ignore_sigterm    true -> SIGTERM is ignored (tests SIGKILL escalation); set before the call is logged
   require_nointeraction  default true
@@ -57,6 +58,7 @@ DEFAULTS = {
     "require_nointeraction": True,
     "initial_status": "unauthenticated",
     "totp_code": "492039",
+    "fail": {},
 }
 
 GLOBAL_FLAGS = {"--nointeraction", "--raw", "--pretty", "--quiet", "--response", "--cleanexit"}
@@ -167,6 +169,10 @@ def main(argv):
     seconds = delays.get(command, delays.get("*", 0))
     if seconds:
         time.sleep(seconds)
+
+    failures = config.get("fail") or {}
+    if command in failures:
+        fail(failures[command])
 
     state_path = os.path.join(data_dir, "fake-state.json")
     state = load_json(state_path, {"status": config["initial_status"],
