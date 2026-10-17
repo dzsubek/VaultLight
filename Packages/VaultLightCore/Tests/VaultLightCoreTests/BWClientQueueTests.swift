@@ -51,7 +51,7 @@ struct BWClientQueueTests {
         let fake = try FakeBW()
         let client = BWClient(
             locator: BWLocator(candidates: ["/nonexistent/bw"], homebrewBinDirectories: []),
-            dataDirectory: fake.dataDirectory, home: fake.dataDirectory.path)
+            dataDirectory: fake.dataDirectory, home: fake.dataDirectory.path, timeouts: FakeBW.patientTimeouts)
         await #expect(throws: BWError.notInstalled) { try await client.status() }
     }
 
@@ -65,7 +65,7 @@ struct BWClientQueueTests {
         try FileManager.default.copyItem(at: FakeBW.executable, to: copy)
         let client = BWClient(
             locator: BWLocator(candidates: [copy.path], homebrewBinDirectories: []), dataDirectory: fake.dataDirectory,
-            home: fake.dataDirectory.path)
+            home: fake.dataDirectory.path, timeouts: FakeBW.patientTimeouts)
         _ = try await client.version()
 
         try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: copy.path)
@@ -78,7 +78,9 @@ struct BWClientQueueTests {
     @Test func dataDirectoryIsCreatedPrivate() async throws {
         let fake = try FakeBW()
         let directory = fake.dataDirectory.appendingPathComponent("VaultLight/bw", isDirectory: true)
-        let client = BWClient(locator: FakeBW.locator, dataDirectory: directory, home: fake.dataDirectory.path)
+        let client = BWClient(
+            locator: FakeBW.locator, dataDirectory: directory, home: fake.dataDirectory.path,
+            timeouts: FakeBW.patientTimeouts)
         _ = try await client.status()
         #expect(try Self.permissions(of: directory) == 0o700)
     }
