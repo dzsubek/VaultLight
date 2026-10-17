@@ -26,6 +26,8 @@ Config keys (fake-config.json):
   ignore_sigterm    true -> SIGTERM is ignored (tests SIGKILL escalation); set before the call is logged
   require_nointeraction  default true
   initial_status    status to start from when no state file exists yet
+  orphan_holds_pipes  seconds: after answering, fork a child that keeps stdout/stderr open that long
+                    while the fake itself exits (tests that the wrapper doesn't wait on leftovers)
 """
 
 import atexit
@@ -73,6 +75,12 @@ def load_json(path, default):
         return default
 
 
+def leave_orphan(seconds):
+    if seconds and os.fork() == 0:
+        time.sleep(seconds)
+        os._exit(0)
+
+
 def main(argv):
     data_dir = os.environ.get("BITWARDENCLI_APPDATA_DIR")
     if not data_dir:
@@ -117,7 +125,8 @@ def main(argv):
         fail("fake-bw: --nointeraction missing", 98)
 
     if argv in (["--version", "--nointeraction"], ["--nointeraction", "--version"], ["--version"]):
-        print(config["version"])
+        print(config["version"], flush=True)
+        leave_orphan(config.get("orphan_holds_pipes"))
         return 0
 
     flags, positional = {}, []

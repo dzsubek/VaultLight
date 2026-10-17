@@ -47,15 +47,17 @@ struct ProcessRunnerTests {
         #expect(output.stdout == content)
     }
 
+    /// SIGTERM alone ends it: the status would be SIGKILL if escalation had been needed. The call returns within
+    /// timeout + grace for draining, long before the fake's 30 s sleep would end.
     @Test func timeoutSendsSIGTERM() async throws {
         let fake = try FakeBW()
         try fake.configure(["delay": ["status": 30]])
         let start = ContinuousClock.now
         let output = try await run(
-            fake, ["status", "--nointeraction"], timeout: .milliseconds(500), killGrace: .seconds(10))
+            fake, ["status", "--nointeraction"], timeout: .milliseconds(500), killGrace: .seconds(3))
         #expect(output.timedOut)
         #expect(output.terminatedBySignal && output.status == SIGTERM)
-        #expect(ContinuousClock.now - start < .seconds(5))
+        #expect(ContinuousClock.now - start < .seconds(20))
     }
 
     /// The timeout leaves the fake time to install its SIGTERM handler even when many tests start processes at once.
@@ -82,6 +84,18 @@ struct ProcessRunnerTests {
             return
         }
         Issue.record("the fake never started within the timeout")
+    }
+
+    /// A process the child leaves behind can keep the pipes open. Once the child has exited, the runner reads for
+    /// at most the kill grace period, so a call can't outlive its timeout and stall the queue.
+    @Test func returnsWhenTheChildExitsEvenIfAGrandchildHoldsThePipes() async throws {
+        let fake = try FakeBW()
+        try fake.configure(["orphan_holds_pipes": 45])
+        let start = ContinuousClock.now
+        let output = try await run(fake, ["--version", "--nointeraction"], killGrace: .seconds(1))
+        #expect(output.status == 0 && !output.timedOut)
+        #expect(String(bytes: output.stdout, encoding: .utf8) == FakeBW.Defaults.version + "\n")
+        #expect(ContinuousClock.now - start < .seconds(40))
     }
 
     @Test func fastCallIsNotTimedOut() async throws {

@@ -46,14 +46,14 @@ enum ProcessRunner {
                 Exit(status: finished.terminationStatus, bySignal: finished.terminationReason == .uncaughtSignal))
             exitContinuation.finish()
         }
-        let stdoutChunks = chunks(of: stdoutPipe.fileHandleForReading)
-        let stderrChunks = chunks(of: stderrPipe.fileHandleForReading)
+        let stdoutReader = PipeReader(stdoutPipe.fileHandleForReading)
+        let stderrReader = PipeReader(stderrPipe.fileHandleForReading)
 
         do {
             try process.run()
         } catch {
-            stdoutPipe.fileHandleForReading.readabilityHandler = nil
-            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            stdoutReader.stop()
+            stderrReader.stop()
             throw error
         }
 
@@ -66,20 +66,37 @@ enum ProcessRunner {
             return true
         }
 
-        async let stdout = collect(stdoutChunks)
-        async let stderr = collect(stderrChunks)
+        async let stdout = stdoutReader.collect()
+        async let stderr = stderrReader.collect()
         var exit = Exit(status: -1, bySignal: false)
         for await finished in exits { exit = finished }
         watchdog.cancel()
 
-        return ProcessOutput(
+        // The child is gone, but something it started may still hold the pipes open. Read what is there for at
+        // most the grace period, then stop, so no call outlives its timeout and stalls the queue behind it.
+        let drainDeadline = Task {
+            guard (try? await Task.sleep(for: killGrace)) != nil else { return }
+            stdoutReader.stop()
+            stderrReader.stop()
+        }
+        let output = ProcessOutput(
             status: exit.status, terminatedBySignal: exit.bySignal, timedOut: await watchdog.value,
             stdout: await stdout, stderr: await stderr)
+        drainDeadline.cancel()
+        return output
     }
 
-    /// Reads a pipe without blocking a thread; the stream ends at EOF.
-    private static func chunks(of handle: FileHandle) -> AsyncStream<Data> {
-        AsyncStream { continuation in
+    /// Reads a pipe without blocking a thread. The stream ends at EOF, or when `stop()` is called.
+    private struct PipeReader: Sendable {
+        private let handle: FileHandle
+        private let chunks: AsyncStream<Data>
+        private let continuation: AsyncStream<Data>.Continuation
+
+        init(_ handle: FileHandle) {
+            self.handle = handle
+            let (chunks, continuation) = AsyncStream.makeStream(of: Data.self)
+            self.chunks = chunks
+            self.continuation = continuation
             handle.readabilityHandler = { readable in
                 let data = readable.availableData
                 if data.isEmpty {
@@ -90,11 +107,16 @@ enum ProcessRunner {
                 }
             }
         }
-    }
 
-    private static func collect(_ chunks: AsyncStream<Data>) async -> Data {
-        var data = Data()
-        for await chunk in chunks { data.append(chunk) }
-        return data
+        func stop() {
+            handle.readabilityHandler = nil
+            continuation.finish()
+        }
+
+        func collect() async -> Data {
+            var data = Data()
+            for await chunk in chunks { data.append(chunk) }
+            return data
+        }
     }
 }
