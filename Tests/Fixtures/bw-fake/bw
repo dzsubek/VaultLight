@@ -23,7 +23,7 @@ Config keys (fake-config.json):
   two_factor_code   if set, password login needs --method 0 --code <value>
   offline           true -> login and sync fail with a network error
   delay             {"sync": 70, "*": 1} seconds to sleep before a command
-  ignore_sigterm    true -> SIGTERM is ignored (tests SIGKILL escalation)
+  ignore_sigterm    true -> SIGTERM is ignored (tests SIGKILL escalation); set before the call is logged
   require_nointeraction  default true
   initial_status    status to start from when no state file exists yet
 """
@@ -82,6 +82,10 @@ def main(argv):
     config = dict(DEFAULTS)
     config.update(load_json(os.path.join(data_dir, "fake-config.json"), {}))
 
+    # Before the log line: a logged call is proof SIGTERM is already ignored.
+    if config["ignore_sigterm"]:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
     marker = os.path.join(data_dir, "fake-running")
     try:
         os.close(os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
@@ -93,9 +97,6 @@ def main(argv):
     with open(os.path.join(data_dir, "fake-calls.jsonl"), "a", encoding="utf-8") as log:
         log.write(json.dumps({"argv": argv, "env_keys": sorted(os.environ.keys()),
                               "concurrent": concurrent}) + "\n")
-
-    if config["ignore_sigterm"]:
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
     items = load_json(os.path.join(FIXTURES, "items.json"), [])
 

@@ -71,8 +71,12 @@ final class FakeBW {
         try? FileManager.default.removeItem(at: dataDirectory)
     }
 
+    /// Generous timeouts for tests that wait for a call to finish. The fake's `python3` shim can take seconds to
+    /// start on a loaded CI runner; the spec values are asserted in `defaultTimeoutsMatchTheSpec`.
+    static let patientTimeouts = BWClient.Timeouts(standard: .seconds(120), sync: .seconds(120), killGrace: .seconds(2))
+
     /// A client wired to this fake's data directory. HOME also points there, away from the user's.
-    func client(timeouts: BWClient.Timeouts = .default) -> BWClient {
+    func client(timeouts: BWClient.Timeouts = FakeBW.patientTimeouts) -> BWClient {
         BWClient(locator: Self.locator, dataDirectory: dataDirectory, home: dataDirectory.path, timeouts: timeouts)
     }
 

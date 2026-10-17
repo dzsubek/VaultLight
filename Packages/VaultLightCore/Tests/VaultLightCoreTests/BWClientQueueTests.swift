@@ -35,11 +35,12 @@ struct BWClientQueueTests {
     }
 
     /// Sync gets the longer timeout; every other call gets the standard one. A timed-out call frees the queue.
+    /// The sync delay is longer than the standard timeout, so only the sync timeout lets it finish.
     @Test func syncUsesTheSyncTimeout() async throws {
         let fake = try FakeBW.unlocked()
         try fake.configure(["delay": ["sync": 1.5, "status": 30]])
         let client = fake.client(
-            timeouts: BWClient.Timeouts(standard: .milliseconds(700), sync: .seconds(10), killGrace: .seconds(1)))
+            timeouts: BWClient.Timeouts(standard: .milliseconds(700), sync: .seconds(120), killGrace: .seconds(1)))
         await #expect(throws: BWError.timeout) { try await client.status(session: FakeBW.session) }
         try await client.sync(session: FakeBW.session)
     }

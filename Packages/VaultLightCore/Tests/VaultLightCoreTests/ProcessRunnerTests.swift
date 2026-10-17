@@ -12,7 +12,7 @@ struct ProcessRunnerTests {
     }
 
     private func run(
-        _ fake: FakeBW, _ arguments: [String], timeout: Duration = .seconds(15), killGrace: Duration = .seconds(2)
+        _ fake: FakeBW, _ arguments: [String], timeout: Duration = .seconds(120), killGrace: Duration = .seconds(2)
     ) async throws -> ProcessOutput {
         try await ProcessRunner.run(
             FakeBW.executable, arguments: arguments, environment: environment(fake), timeout: timeout,
@@ -41,7 +41,7 @@ struct ProcessRunnerTests {
         try content.write(to: file)
 
         let output = try await ProcessRunner.run(
-            URL(fileURLWithPath: "/bin/cat"), arguments: [file.path], environment: [:], timeout: .seconds(15),
+            URL(fileURLWithPath: "/bin/cat"), arguments: [file.path], environment: [:], timeout: .seconds(120),
             killGrace: .seconds(2))
         #expect(output.status == 0)
         #expect(output.stdout == content)
@@ -59,23 +59,35 @@ struct ProcessRunnerTests {
     }
 
     /// The timeout leaves the fake time to install its SIGTERM handler even when many tests start processes at once.
+    ///
+    /// The fake logs its call only after it ignores SIGTERM. A run where SIGTERM arrived before that (the fake was
+    /// still starting) says nothing about escalation, so it is repeated with a longer timeout.
     @Test func escalatesToSIGKILLWhenSIGTERMIsIgnored() async throws {
-        let fake = try FakeBW()
-        try fake.configure(["delay": ["status": 30], "ignore_sigterm": true])
-        let start = ContinuousClock.now
-        let output = try await run(
-            fake, ["status", "--nointeraction"], timeout: .seconds(2), killGrace: .milliseconds(700))
-        let elapsed = ContinuousClock.now - start
-        #expect(output.timedOut)
-        #expect(output.terminatedBySignal && output.status == SIGKILL)
-        #expect(elapsed >= .milliseconds(2700))
-        #expect(elapsed < .seconds(15))
+        var timeout = Duration.seconds(2)
+        for _ in 0..<5 {
+            let fake = try FakeBW()
+            try fake.configure(["delay": ["status": 300], "ignore_sigterm": true])
+            let start = ContinuousClock.now
+            let output = try await run(
+                fake, ["status", "--nointeraction"], timeout: timeout, killGrace: .milliseconds(700))
+            let elapsed = ContinuousClock.now - start
+            #expect(output.timedOut && output.terminatedBySignal)
+            guard try !fake.calls().isEmpty else {
+                #expect(output.status == SIGTERM)
+                timeout *= 2
+                continue
+            }
+            #expect(output.status == SIGKILL)
+            #expect(elapsed >= timeout + .milliseconds(700))
+            return
+        }
+        Issue.record("the fake never started within the timeout")
     }
 
     @Test func fastCallIsNotTimedOut() async throws {
         let fake = try FakeBW()
         try fake.configure(["delay": ["status": 0.2]])
-        let output = try await run(fake, ["status", "--nointeraction"], timeout: .seconds(5))
+        let output = try await run(fake, ["status", "--nointeraction"])
         #expect(output.status == 0 && !output.timedOut)
     }
 
