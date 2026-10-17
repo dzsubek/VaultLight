@@ -13,7 +13,7 @@ run() { # run <expected-exit> <extra env...> -- <args...>
   local envs=()
   while [ "$1" != "--" ]; do envs+=("$1"); shift; done; shift
   set +e
-  out=$(env -i HOME="$HOME" PATH="/usr/bin:/bin" BITWARDENCLI_APPDATA_DIR="$data" "${envs[@]}" "$bw" "$@" 2>&1)
+  out=$(env -i HOME="$HOME" PATH="/usr/bin:/bin" BITWARDENCLI_APPDATA_DIR="$data" ${envs[@]+"${envs[@]}"} "$bw" "$@" 2>&1)
   code=$?
   set -e
   if [ "$code" != "$expected" ]; then

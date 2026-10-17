@@ -30,7 +30,8 @@ struct HarnessTests {
         try process.run()
         process.waitUntilExit()
 
-        let version = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let version = try #require(
+            String(bytes: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8))
         #expect(process.terminationStatus == 0)
         #expect(version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
 

@@ -18,6 +18,13 @@ opt_in_rules:
   - implicitly_unwrapped_optional
   - fatal_error_message
 
+# "Master password" is Bitwarden's product term (spec §3); allow only that compound.
+# Listing allowed terms replaces SwiftLint's defaults, so keep "mastercard".
+inclusive_language:
+  override_allowed_terms:
+    - mastercard
+    - masterpassword
+
 custom_rules:
   no_shell:
     name: "No shell"
