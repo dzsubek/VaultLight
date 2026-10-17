@@ -12,9 +12,9 @@ public struct BWExecutable: Sendable, Equatable {
 ///
 /// Trust checks, all of which must pass:
 /// - the binary (symlinks resolved) is owned by the user or root and not writable by group or others;
-/// - every folder above the binary, above the configured or pinned path, and above the Homebrew bin put on the
-///   child PATH is owned by the user or root, never writable by others, and group-writable only for wheel or
-///   admin (Homebrew's own folders are `user:admin 775`).
+/// - on the way to the binary and to the Homebrew bin put on the child PATH, every folder passed through is owned by
+///   the user or root, never writable by others, and group-writable only for wheel or admin (Homebrew's own folders
+///   are `user:admin 775`), and every symlink is owned by the user or root.
 public struct BWLocator: Sendable {
     /// Apple Silicon first, then Intel.
     public static let pinnedPaths = ["/opt/homebrew/bin/bw", "/usr/local/bin/bw"]
@@ -47,7 +47,7 @@ public struct BWLocator: Sendable {
         guard let entry = paths.first(where: { $0.hasPrefix("/") && FileManager.default.fileExists(atPath: $0) })
         else { throw BWError.notInstalled }
 
-        let resolved = try resolveCheckingEachLink(entry)
+        let resolved = try resolveChecked(entry)
         guard let file = Self.ownership(of: resolved), file.type == .typeRegular,
             FileManager.default.isExecutableFile(atPath: resolved)
         else { throw BWError.notInstalled }
@@ -59,10 +59,7 @@ public struct BWLocator: Sendable {
             var isDirectory: ObjCBool = false
             return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
         }
-        if let homebrewBin {
-            guard let real = Self.realPath(homebrewBin) else { throw BWError.unsafeBinary }
-            try checkFolderAndAncestors(real)
-        }
+        if let homebrewBin { try checkTrustedFolder(resolveChecked(homebrewBin)) }
 
         let searchPath = ((homebrewBin.map { [$0] } ?? []) + ["/usr/bin", "/bin"]).joined(separator: ":")
         return BWExecutable(url: URL(fileURLWithPath: resolved), searchPath: searchPath)
@@ -73,50 +70,53 @@ public struct BWLocator: Sendable {
         return permissions & 0o020 == 0 || trustedGroups.contains(group)
     }
 
-    /// Follows `path` one symlink at a time. Every link must be owned by the user or root, and the real folder
-    /// holding each link, and the final file, must pass `checkFolderAndAncestors`. Returns the final file's real path.
-    private func resolveCheckingEachLink(_ path: String) throws -> String {
-        var current = path
-        for _ in 0..<Self.maximumLinkHops {
-            let name = (current as NSString).lastPathComponent
-            guard let folder = Self.realPath((current as NSString).deletingLastPathComponent) else {
-                throw BWError.notInstalled
+    /// Resolves `path` one component at a time from `/`, the way the kernel does, but checks before it follows:
+    /// every folder passed through must be trusted, and every link (file or folder) must be owned by the user or
+    /// root. So no shared folder is skipped, whether it holds the file, a link to it, or a link to a folder on the
+    /// way. Returns the real path of the last component, which the caller checks.
+    private func resolveChecked(_ path: String) throws -> String {
+        var pending = Self.components(of: path)
+        var resolved = "/"
+        try checkTrustedFolder(resolved)
+        var hops = 0
+        while !pending.isEmpty {
+            let name = pending.removeFirst()
+            if name == "." { continue }
+            if name == ".." {
+                resolved = (resolved as NSString).deletingLastPathComponent  // an already checked ancestor
+                continue
             }
-            try checkFolderAndAncestors(folder)
-            current = (folder as NSString).appendingPathComponent(name)
-            guard let info = Self.ownership(of: current) else { throw BWError.notInstalled }
-            guard info.type == .typeSymbolicLink else { return current }
-            guard info.owner == currentUserID || info.owner == 0 else { throw BWError.unsafeBinary }
-            guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: current) else {
-                throw BWError.notInstalled
+            let candidate = (resolved as NSString).appendingPathComponent(name)
+            guard let info = Self.ownership(of: candidate) else { throw BWError.notInstalled }
+            if info.type == .typeSymbolicLink {
+                hops += 1
+                guard info.owner == currentUserID || info.owner == 0, hops <= Self.maximumLinkHops,
+                    let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: candidate)
+                else { throw BWError.unsafeBinary }
+                if destination.hasPrefix("/") { resolved = "/" }
+                pending = Self.components(of: destination) + pending
+            } else if pending.isEmpty {
+                return candidate
+            } else {
+                guard info.type == .typeDirectory else { throw BWError.notInstalled }
+                try checkTrustedFolder(candidate)
+                resolved = candidate
             }
-            current =
-                destination.hasPrefix("/") ? destination : (folder as NSString).appendingPathComponent(destination)
         }
-        throw BWError.unsafeBinary
+        return resolved
     }
 
-    private static let maximumLinkHops = 16
+    private static let maximumLinkHops = 32
 
-    /// `path` and every folder above it must be trusted. `path` must be a real path (no symlinks), so each step
-    /// reads an actual folder: `/private/tmp`, not the root-owned `/tmp` link.
-    private func checkFolderAndAncestors(_ path: String) throws {
-        var current = path
-        while true {
-            guard let info = Self.ownership(of: current), info.type == .typeDirectory,
-                Self.isTrustedFolder(
-                    owner: info.owner, group: info.group, permissions: info.permissions, currentUserID: currentUserID)
-            else { throw BWError.unsafeBinary }
-            if current == "/" { return }
-            current = (current as NSString).deletingLastPathComponent
-        }
+    private static func components(of path: String) -> [String] {
+        path.split(separator: "/").map(String.init)
     }
 
-    /// `realpath(3)`: unlike `URL.resolvingSymlinksInPath()` it keeps `/private`, so `/tmp` becomes `/private/tmp`.
-    private static func realPath(_ path: String) -> String? {
-        guard let resolved = realpath(path, nil) else { return nil }
-        defer { free(resolved) }
-        return String(cString: resolved)
+    private func checkTrustedFolder(_ path: String) throws {
+        guard let info = Self.ownership(of: path), info.type == .typeDirectory,
+            Self.isTrustedFolder(
+                owner: info.owner, group: info.group, permissions: info.permissions, currentUserID: currentUserID)
+        else { throw BWError.unsafeBinary }
     }
 
     private struct Ownership {

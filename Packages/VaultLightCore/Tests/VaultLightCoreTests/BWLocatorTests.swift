@@ -175,6 +175,25 @@ struct BWLocatorTests {
         #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: []).locate(configuredPath: link.path) }
     }
 
+    /// A folder link inside the path is checked too: /tmp/<link>/true, with <link> → /usr/bin, sits in /private/tmp.
+    @Test func refusesFolderSymlinkInSharedFolder() throws {
+        let link = URL(fileURLWithPath: "/tmp/vaultlight-test-dir-\(UUID().uuidString)")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: URL(fileURLWithPath: "/usr/bin"))
+        defer { try? FileManager.default.removeItem(at: link) }
+        let path = link.appendingPathComponent("true").path
+        #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: []).locate(configuredPath: path) }
+    }
+
+    /// `..` and `.` in a configured path resolve like the kernel would, without skipping a check.
+    @Test func dotComponentsResolve() throws {
+        let scratch = try Scratch()
+        let binary = try scratch.makeBinary()
+        let path = scratch.directory.path + "/./sub/../bw"
+        try FileManager.default.createDirectory(
+            at: scratch.directory.appendingPathComponent("sub"), withIntermediateDirectories: true)
+        #expect(Self.samePath(try Self.locator(candidates: []).locate(configuredPath: path).url, binary))
+    }
+
     /// Each hop of a symlink chain is checked: a safe-looking first link can't lead through a shared folder.
     @Test func checksEveryHopOfASymlinkChain() throws {
         let scratch = try Scratch()
