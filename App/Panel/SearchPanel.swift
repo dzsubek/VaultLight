@@ -25,7 +25,8 @@ final class SearchPanel: NSPanel {
         isMovable = false
         isFloatingPanel = true
         animationBehavior = .none
-        // Names and usernames must not reach a screen recording, and the panel is never restored on relaunch.
+        // Best effort: keeps names and usernames out of legacy window capture (ScreenCaptureKit on macOS 15+
+        // ignores it). The panel is never restored on relaunch.
         sharingType = .none
         isRestorable = false
     }
