@@ -31,6 +31,16 @@ struct BWLocatorTests {
         }
     }
 
+    /// Never reads the host's Homebrew folders; tests that need a Homebrew bin pass their own.
+    static func locator(candidates: [String], currentUserID: uid_t = getuid()) -> BWLocator {
+        BWLocator(candidates: candidates, homebrewBinDirectories: [], currentUserID: currentUserID)
+    }
+
+    /// Compares file URLs regardless of the /private prefix macOS adds to /var and /tmp.
+    static func samePath(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.resolvingSymlinksInPath().path == rhs.resolvingSymlinksInPath().path
+    }
+
     @Test func defaultCandidatesAreTheTwoPinnedHomebrewPaths() {
         #expect(BWLocator.pinnedPaths == ["/opt/homebrew/bin/bw", "/usr/local/bin/bw"])
         #expect(BWLocator().candidates == BWLocator.pinnedPaths)
@@ -40,8 +50,8 @@ struct BWLocatorTests {
         let scratch = try Scratch()
         let second = try scratch.makeBinary("bw-second")
         let missing = scratch.directory.appendingPathComponent("missing").path
-        let executable = try BWLocator(candidates: [missing, second.path]).locate()
-        #expect(executable.url == second.resolvingSymlinksInPath())
+        let executable = try Self.locator(candidates: [missing, second.path]).locate()
+        #expect(Self.samePath(executable.url, second))
     }
 
     /// The child PATH is the first Homebrew bin that exists plus /usr/bin:/bin, never the folder of a
@@ -68,16 +78,16 @@ struct BWLocatorTests {
     @Test func doesNotFallBackToPATH() throws {
         let scratch = try Scratch()
         let missing = scratch.directory.appendingPathComponent("bw").path
-        #expect(throws: BWError.notInstalled) { try BWLocator(candidates: [missing]).locate() }
-        #expect(throws: BWError.notInstalled) { try BWLocator(candidates: []).locate() }
+        #expect(throws: BWError.notInstalled) { try Self.locator(candidates: [missing]).locate() }
+        #expect(throws: BWError.notInstalled) { try Self.locator(candidates: []).locate() }
     }
 
     @Test func configuredPathIsUsedInsteadOfCandidates() throws {
         let scratch = try Scratch()
         let pinned = try scratch.makeBinary("pinned")
         let custom = try scratch.makeBinary("custom")
-        let executable = try BWLocator(candidates: [pinned.path]).locate(configuredPath: custom.path)
-        #expect(executable.url == custom.resolvingSymlinksInPath())
+        let executable = try Self.locator(candidates: [pinned.path]).locate(configuredPath: custom.path)
+        #expect(Self.samePath(executable.url, custom))
     }
 
     /// A configured path that doesn't work never falls back silently to the pinned paths.
@@ -86,25 +96,25 @@ struct BWLocatorTests {
         let pinned = try scratch.makeBinary("pinned")
         let missing = scratch.directory.appendingPathComponent("custom").path
         #expect(throws: BWError.notInstalled) {
-            try BWLocator(candidates: [pinned.path]).locate(configuredPath: missing)
+            try Self.locator(candidates: [pinned.path]).locate(configuredPath: missing)
         }
     }
 
     @Test func relativeConfiguredPathIsRejected() throws {
-        #expect(throws: BWError.notInstalled) { try BWLocator(candidates: []).locate(configuredPath: "bin/bw") }
+        #expect(throws: BWError.notInstalled) { try Self.locator(candidates: []).locate(configuredPath: "bin/bw") }
     }
 
     @Test func nonExecutableFileIsNotInstalled() throws {
         let scratch = try Scratch()
         let binary = try scratch.makeBinary(permissions: 0o644)
-        #expect(throws: BWError.notInstalled) { try BWLocator(candidates: [binary.path]).locate() }
+        #expect(throws: BWError.notInstalled) { try Self.locator(candidates: [binary.path]).locate() }
     }
 
     @Test(arguments: [0o775, 0o757, 0o777])
     func refusesBinaryWritableByGroupOrOthers(permissions: Int) throws {
         let scratch = try Scratch()
         let binary = try scratch.makeBinary(permissions: permissions)
-        #expect(throws: BWError.unsafeBinary) { try BWLocator(candidates: [binary.path]).locate() }
+        #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: [binary.path]).locate() }
     }
 
     @Test func refusesBinaryOwnedByAnotherUser() throws {
@@ -112,7 +122,7 @@ struct BWLocatorTests {
         let binary = try scratch.makeBinary()
         let someoneElse = getuid() + 1
         #expect(throws: BWError.unsafeBinary) {
-            try BWLocator(candidates: [binary.path], currentUserID: someoneElse).locate()
+            try Self.locator(candidates: [binary.path], currentUserID: someoneElse).locate()
         }
     }
 
@@ -129,11 +139,11 @@ struct BWLocatorTests {
         let target = try scratch.makeBinary("bw.js", permissions: 0o777)
         let link = scratch.directory.appendingPathComponent("bw")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
-        #expect(throws: BWError.unsafeBinary) { try BWLocator(candidates: [link.path]).locate() }
+        #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: [link.path]).locate() }
 
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path)
-        let executable = try BWLocator(candidates: [link.path]).locate()
-        #expect(executable.url == target.resolvingSymlinksInPath())
+        let executable = try Self.locator(candidates: [link.path]).locate()
+        #expect(Self.samePath(executable.url, target))
     }
 
     /// A folder others can write to lets them swap the binary or plant files, so it is refused, both where the
@@ -145,7 +155,7 @@ struct BWLocatorTests {
         let binary = try scratch.makeBinary(in: shared)
         try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: shared.path)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shared.path) }
-        #expect(throws: BWError.unsafeBinary) { try BWLocator(candidates: []).locate(configuredPath: binary.path) }
+        #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: []).locate(configuredPath: binary.path) }
     }
 
     /// The security review's scenario: a `bw` symlink in a shared folder pointing at a root-owned tool.
@@ -154,7 +164,27 @@ struct BWLocatorTests {
         let shared = try scratch.makeDirectory("shared", permissions: 0o777)
         let link = shared.appendingPathComponent("bw")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: URL(fileURLWithPath: "/usr/bin/true"))
-        #expect(throws: BWError.unsafeBinary) { try BWLocator(candidates: []).locate(configuredPath: link.path) }
+        #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: []).locate(configuredPath: link.path) }
+    }
+
+    /// /tmp is a root-owned symlink to the world-writable /private/tmp; the real folder is what gets checked.
+    @Test func refusesSymlinkUnderTmp() throws {
+        let link = URL(fileURLWithPath: "/tmp/vaultlight-test-bw-\(UUID().uuidString)")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: URL(fileURLWithPath: "/usr/bin/true"))
+        defer { try? FileManager.default.removeItem(at: link) }
+        #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: []).locate(configuredPath: link.path) }
+    }
+
+    /// Each hop of a symlink chain is checked: a safe-looking first link can't lead through a shared folder.
+    @Test func checksEveryHopOfASymlinkChain() throws {
+        let scratch = try Scratch()
+        let shared = try scratch.makeDirectory("shared", permissions: 0o777)
+        let middle = shared.appendingPathComponent("hop")
+        try FileManager.default.createSymbolicLink(
+            at: middle, withDestinationURL: URL(fileURLWithPath: "/usr/bin/true"))
+        let entry = scratch.directory.appendingPathComponent("bw")
+        try FileManager.default.createSymbolicLink(at: entry, withDestinationURL: middle)
+        #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: [entry.path]).locate() }
     }
 
     /// Group-writable folders are allowed only for wheel and admin (Homebrew's /opt/homebrew/bin is user:admin 775).
@@ -175,6 +205,6 @@ struct BWLocatorTests {
 
     @Test func findsTheFakeBW() throws {
         let executable = try FakeBW.locator.locate()
-        #expect(executable.url == FakeBW.executable.resolvingSymlinksInPath())
+        #expect(Self.samePath(executable.url, FakeBW.executable))
     }
 }
