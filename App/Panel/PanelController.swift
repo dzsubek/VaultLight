@@ -127,14 +127,10 @@ final class PanelController {
     /// Resizes the panel for the current content. The top edge stays where `PanelPlacement` puts it, so the panel
     /// grows downward and the search field doesn't move.
     func applyFrame() {
-        let height: CGFloat
-        switch content {
-        case .unlocked:
-            height = PanelMetrics.height(
-                unlockedRowCount: viewModel.results.count, hasSection: viewModel.section != nil)
-        default:
-            height = PanelMetrics.lockedHeight
-        }
+        let height =
+            content == .unlocked
+            ? PanelMetrics.height(unlockedRowCount: viewModel.results.count, hasSection: viewModel.section != nil)
+            : PanelMetrics.lockedHeight
         let size = CGSize(width: PanelMetrics.width, height: height)
         let frame = PanelPlacement.frame(
             panelSize: size, screens: NSScreen.screens.map(\.visibleFrame), mouse: anchor)

@@ -31,7 +31,7 @@ enum Monogram {
     private static let hues: [CGFloat] = [0.90, 0.50, 0.02, 0.35, 0.09, 0.75, 0.60, 0.15, 0.45, 0.97]
 
     /// FNV-1a over the UTF-8 bytes: stable across launches, unlike `hashValue`.
-    static func fnv1a(_ text: String) -> UInt32 {
+    private static func fnv1a(_ text: String) -> UInt32 {
         var hash: UInt32 = 2_166_136_261
         for byte in text.utf8 {
             hash ^= UInt32(byte)
@@ -40,7 +40,7 @@ enum Monogram {
         return hash
     }
 
-    static func hue(for name: String) -> CGFloat {
+    private static func hue(for name: String) -> CGFloat {
         hues[Int(fnv1a(name) % UInt32(hues.count))]
     }
 

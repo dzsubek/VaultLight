@@ -30,9 +30,7 @@ struct LockedView: View {
                 onSubmit: { password in Task { await controller.unlock(masterPassword: password) } })
         case .touchID:
             title(symbol: "touchid", text: "Touch ID to unlock")
-        case .checking:
-            title(symbol: "lock", text: "VaultLight")
-        case .needsOnboarding, .problem, .unlocked:
+        case .checking, .needsOnboarding, .problem, .unlocked:
             title(symbol: "lock", text: "VaultLight")
         }
     }
@@ -57,8 +55,7 @@ struct LockedView: View {
 
     private var bodyText: String {
         switch controller.content {
-        case .checking: ""
-        case .unlocked: ""
+        case .checking, .unlocked: ""
         case .touchID(let canceled): canceled ? "Press Return to try again." : "Waiting for Touch ID…"
         case .masterPassword(let failed, let busy):
             failed ? "Wrong master password" : busy ? "Unlocking…" : "Enter your master password to unlock."
