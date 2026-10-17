@@ -18,7 +18,9 @@ help: ## List targets
 
 bootstrap: ## Install tools via Homebrew and create Configs/Local.xcconfig
 	brew bundle --file=Brewfile
-	@chmod +x Tests/Fixtures/bw-fake/bw Tests/Fixtures/bw-fake/smoke-test.sh
+	@for f in Tests/Fixtures/bw-fake/bw Tests/Fixtures/bw-fake/smoke-test.sh scripts/*.sh; do \
+		if [ -e "$$f" ]; then chmod +x "$$f"; fi; \
+	done
 	@if [ ! -f Configs/Local.xcconfig ]; then \
 		cp Configs/Local.xcconfig.example Configs/Local.xcconfig; \
 		echo "Created Configs/Local.xcconfig: set VL_TEAM_ID and VL_BUNDLE_ID."; \
