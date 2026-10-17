@@ -24,8 +24,8 @@ public struct VaultEntry: Sendable, Equatable, Identifiable {
         self.id = id
         self.name = name
         self.username = username
-        self.uris = uris
-        self.hosts = uris.compactMap(Self.host(of:))
+        self.uris = uris.compactMap(Self.withoutCredentials)
+        self.hosts = self.uris.compactMap(Self.host(of:))
         self.folderId = folderId
         self.organizationId = organizationId
         self.favorite = favorite
@@ -35,6 +35,19 @@ public struct VaultEntry: Sendable, Equatable, Identifiable {
     /// The host shown on the result row (spec 5.2).
     public var primaryHost: String? { hosts.first }
 
+    /// The URI without a user name or password (`postgres://app:pw@db` → `postgres://db`), so a password
+    /// written into a URI never stays in the index (spec 9.1). A URI with "@" that can't be parsed is dropped.
+    static func withoutCredentials(_ uri: String) -> String? {
+        guard uri.contains("@") else { return uri }
+        let hasScheme = uri.contains("://")
+        guard var components = URLComponents(string: hasScheme ? uri : "https://" + uri) else { return nil }
+        components.user = nil
+        components.password = nil
+        guard var text = components.string else { return nil }
+        if !hasScheme { text.removeFirst("https://".count) }
+        return text
+    }
+
     /// The lowercased host of a URI. Bitwarden allows URIs without a scheme ("example.com"), so those are
     /// read as https.
     static func host(of uri: String) -> String? {
@@ -43,6 +56,12 @@ public struct VaultEntry: Sendable, Equatable, Identifiable {
         guard let host = components?.host, !host.isEmpty else { return nil }
         return host.lowercased()
     }
+}
+
+/// Only the id, so a stray interpolation can't put an item name, username or URI into a log or error text.
+extension VaultEntry: CustomStringConvertible, CustomDebugStringConvertible {
+    public var description: String { "VaultEntry(id: \(id))" }
+    public var debugDescription: String { description }
 }
 
 extension VaultEntry {

@@ -84,6 +84,35 @@ struct VaultEntryTests {
         #expect(VaultEntry.host(of: "not a uri") == nil)
     }
 
+    @Test func credentialsInURIsAreDropped() {
+        let entry = VaultEntry(
+            id: "id", name: "DB",
+            uris: [
+                "postgres://app:s3cret-pw@db.internal:5432/prod", "admin:s3cret-pw@192.168.1.1",
+                "https://medium.com/@someone", "https://plain.example/x",
+            ])
+        #expect(entry.uris.allSatisfy { !$0.contains("s3cret-pw") && !$0.contains("app:") })
+        #expect(entry.uris.contains("postgres://db.internal:5432/prod"))
+        #expect(entry.uris.contains("192.168.1.1"))
+        #expect(entry.uris.contains("https://medium.com/@someone"))
+        #expect(entry.uris.contains("https://plain.example/x"))
+        #expect(entry.hosts == ["db.internal", "192.168.1.1", "medium.com", "plain.example"])
+        // A URI with "@" that can't be parsed is dropped rather than kept with a possible password.
+        #expect(VaultEntry(id: "id", name: "x", uris: ["bad uri:pw@ host"]).uris.isEmpty)
+    }
+
+    @Test func descriptionsRevealOnlyTheId() {
+        let entry = VaultEntry(id: "abc", name: "Secret Bank", username: "jane", uris: ["https://bank.example"])
+        let result = SearchIndex(entries: [entry]).search("secret").first
+        for text in [
+            String(describing: entry), String(reflecting: entry), "\(entry)", String(describing: result as Any),
+            String(reflecting: result as Any),
+        ] {
+            #expect(text.contains("abc"))
+            #expect(!text.contains("Secret Bank") && !text.contains("jane") && !text.contains("bank.example"))
+        }
+    }
+
     @Test func missingOptionalFieldsDecode() throws {
         let json = Data(
             (#"[{"id":"a","type":1,"name":"Bare","login":{"uris":null,"username":null,"totp":""}},"#

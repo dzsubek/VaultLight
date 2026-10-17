@@ -19,6 +19,12 @@ public struct SearchResult: Sendable, Equatable, Identifiable {
     public var id: String { entry.id }
 }
 
+/// Only the id and tier, for the same reason as `VaultEntry`'s description.
+extension SearchResult: CustomStringConvertible, CustomDebugStringConvertible {
+    public var description: String { "SearchResult(id: \(id), tier: \(tier.map { "\($0)" } ?? "none"))" }
+    public var debugDescription: String { description }
+}
+
 /// The in-memory search index (spec 2.1, 5.1): login metadata only, plus this session's copy history.
 ///
 /// Searching never starts a process. The owner discards the whole value on lock, sleep, idle or user switch,
