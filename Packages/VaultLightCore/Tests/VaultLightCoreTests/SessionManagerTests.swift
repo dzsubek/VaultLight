@@ -26,35 +26,40 @@ final class TestClock: Sendable {
 /// Spec 3.4 and 3.5, against the fake `bw` and an in-memory store.
 @Suite("SessionManager")
 struct SessionManagerTests {
-    private let fake: FakeBW
-    private let clock = TestClock()
+    let fake: FakeBW
+    let clock = TestClock()
 
     init() throws {
         fake = try FakeBW()
         try fake.setState("locked")
     }
 
-    private func manager(store: InMemorySessionStore, settings: SessionSettings = SessionSettings()) -> SessionManager {
-        SessionManager(client: fake.client(), store: store, settings: settings, clock: clock.sessionClock)
+    func manager(
+        store: InMemorySessionStore, settings: SessionSettings = SessionSettings(),
+        policyCheckInterval: Duration = .seconds(3_600)
+    ) -> SessionManager {
+        SessionManager(
+            client: fake.client(), store: store, settings: settings, clock: clock.sessionClock,
+            policyCheckInterval: policyCheckInterval)
     }
 
-    private func storedItem(age: TimeInterval = 60, key: SessionKey = FakeBW.session) -> InMemorySessionStore.Item {
+    func storedItem(age: TimeInterval = 60, key: SessionKey = FakeBW.session) -> InMemorySessionStore.Item {
         InMemorySessionStore.Item(key: key, createdAt: clock.now.addingTimeInterval(-age))
     }
 
     /// A manager unlocked with the master password.
-    private func unlockedManager(store: InMemorySessionStore = InMemorySessionStore()) async throws -> SessionManager {
+    func unlockedManager(store: InMemorySessionStore = InMemorySessionStore()) async throws -> SessionManager {
         let manager = manager(store: store)
         #expect(try await manager.unlock(masterPassword: FakeBW.Defaults.masterPassword) == .unlocked)
         return manager
     }
 
-    private func commands() throws -> [String] {
+    func commands() throws -> [String] {
         try fake.calls().compactMap { ($0["argv"] as? [String])?.first }
     }
 
     /// Waits for a condition that another task makes true, failing after a minute.
-    private func eventually(_ condition: () async throws -> Bool) async throws {
+    func eventually(_ condition: () async throws -> Bool) async throws {
         let deadline = ContinuousClock.now + .seconds(60)
         while try await !condition() {
             guard ContinuousClock.now < deadline else {
@@ -65,7 +70,7 @@ struct SessionManagerTests {
         }
     }
 
-    private func expectLocked(_ manager: SessionManager) async throws {
+    func expectLocked(_ manager: SessionManager) async throws {
         #expect(await !manager.isUnlocked)
         #expect(await manager.search("").isEmpty)
         #expect(await manager.search("git").isEmpty)
@@ -206,143 +211,5 @@ struct SessionManagerTests {
         #expect(try await unlock.value == .needsMasterPassword(.noStoredSession))
         #expect(await store.item == nil)
         try await expectLocked(manager)
-    }
-
-    // MARK: Clearing the in-memory session (spec 3.5)
-
-    @Test(arguments: [SystemEvent.willSleep, .screenLocked, .sessionResigned])
-    func systemEventsClearTheSessionButKeepTheStoredOne(_ event: SystemEvent) async throws {
-        let store = InMemorySessionStore()
-        let manager = try await unlockedManager(store: store)
-        let (events, continuation) = AsyncStream.makeStream(of: SystemEvent.self)
-        await manager.observe(events)
-        continuation.yield(event)
-        try await eventually { await !manager.isUnlocked }
-        try await expectLocked(manager)
-        #expect(await store.item != nil)
-        #expect(try await manager.refreshState() == .storedSessionAvailable)
-    }
-
-    @Test func lockNowClearsTheSessionButKeepsTheStoredOne() async throws {
-        let store = InMemorySessionStore()
-        let manager = try await unlockedManager(store: store)
-        await manager.lockNow()
-        try await expectLocked(manager)
-        #expect(await store.item != nil)
-        #expect(try !commands().contains("lock"))
-    }
-
-    @Test(arguments: [SessionSettings.IdleLock.fiveMinutes, .fifteenMinutes, .thirtyMinutes])
-    func idleTimeClearsTheSession(_ idleLock: SessionSettings.IdleLock) async throws {
-        let limit = try #require(idleLock.seconds)
-        let manager = try await unlockedManager()
-        await manager.updateSettings(SessionSettings(idleLock: idleLock))
-        clock.setIdle(limit - 1)
-        #expect(await manager.enforcePolicy())
-        #expect(await manager.isUnlocked)
-        clock.setIdle(limit)
-        #expect(await !manager.enforcePolicy())
-        try await expectLocked(manager)
-    }
-
-    @Test func idleLockCanBeTurnedOff() async throws {
-        let manager = try await unlockedManager()
-        await manager.updateSettings(SessionSettings(idleLock: .off))
-        clock.setIdle(7 * 3_600)
-        #expect(await manager.enforcePolicy())
-    }
-
-    @Test func inMemoryLifetimeClearsTheSession() async throws {
-        let manager = try await unlockedManager()
-        await manager.updateSettings(SessionSettings(inMemoryLifetime: .fifteenMinutes, idleLock: .off))
-        clock.advance(by: 15 * 60 - 1)
-        #expect(await manager.enforcePolicy())
-        clock.advance(by: 1)
-        #expect(await !manager.enforcePolicy())
-        try await expectLocked(manager)
-    }
-
-    @Test func copyingChecksThePolicyFirst() async throws {
-        let manager = try await unlockedManager()
-        clock.setIdle(15 * 60)
-        let callsBefore = try fake.calls().count
-        await #expect(throws: BWError.locked) { try await manager.totp(for: FakeBW.Item.github) }
-        #expect(try fake.calls().count == callsBefore)
-        try await expectLocked(manager)
-    }
-
-    @Test func lockClearsTheCopyBoost() async throws {
-        try fake.setState("unlocked")
-        let manager = manager(store: InMemorySessionStore(storedItem()))
-        _ = try await manager.unlockWithStoredSession(reason: "r")
-        let favorites = await manager.search("").map(\.id)
-        await manager.recordCopy(id: FakeBW.Item.gitlab)
-        #expect(await manager.search("").map(\.id) == [FakeBW.Item.gitlab])
-        await manager.lockNow()
-        _ = try await manager.unlockWithStoredSession(reason: "r")
-        #expect(await manager.search("").map(\.id) == favorites)
-    }
-
-}
-
-extension SessionManagerTests {
-    // MARK: Lock and forget, sign out
-
-    @Test func lockAndForgetRunsBWLockAndDeletesTheStoredSession() async throws {
-        let store = InMemorySessionStore()
-        let manager = try await unlockedManager(store: store)
-        try await manager.lockAndForget()
-        try await expectLocked(manager)
-        #expect(await store.item == nil)
-        #expect(try commands().last == "lock")
-        #expect(try await manager.refreshState() == .needsMasterPassword(.noStoredSession))
-    }
-
-    @Test func signOutClearsEverythingBeforeLoggingOut() async throws {
-        let store = InMemorySessionStore()
-        let manager = try await unlockedManager(store: store)
-        await manager.setBackgroundSyncInterval(.milliseconds(50))
-        try await eventually { try commands().filter { $0 == "sync" }.count >= 2 }
-
-        #expect(try await manager.signOut() == .needsOnboarding)
-        try await expectLocked(manager)
-        #expect(await store.item == nil)
-        #expect(try commands().last == "logout")
-
-        // Background sync stopped: no sync after the logout.
-        try await Task.sleep(for: .milliseconds(300))
-        #expect(try commands().last == "logout")
-        #expect(try await manager.refreshState() == .needsOnboarding)
-    }
-
-    @Test func failingLogoutStillLeavesNoUsableSession() async throws {
-        let store = InMemorySessionStore()
-        let manager = try await unlockedManager(store: store)
-        try fake.configure(["fail": ["logout": "Logout failed."]])
-        await #expect(throws: BWError.self) { try await manager.signOut() }
-        try await expectLocked(manager)
-        #expect(await store.item == nil)
-        #expect(try await manager.refreshState() == .needsMasterPassword(.noStoredSession))
-    }
-
-    // MARK: Background sync
-
-    @Test func backgroundSyncRunsWhileUnlockedAndStopsOnLock() async throws {
-        let manager = try await unlockedManager()
-        await manager.setBackgroundSyncInterval(.milliseconds(50))
-        try await eventually { try commands().filter { $0 == "sync" }.count >= 2 }
-        await manager.lockNow()
-        // A sync that was already running may finish; none starts afterwards.
-        try await Task.sleep(for: .milliseconds(200))
-        let syncs = try commands().filter { $0 == "sync" }.count
-        try await Task.sleep(for: .milliseconds(300))
-        #expect(try commands().filter { $0 == "sync" }.count == syncs)
-    }
-
-    @Test func syncRebuildsTheIndex() async throws {
-        let manager = try await unlockedManager()
-        try await manager.sync()
-        #expect(try commands().suffix(4) == ["sync", "list", "list", "list"])
-        #expect(await manager.search("GitHub").first?.entry.name == "GitHub")
     }
 }

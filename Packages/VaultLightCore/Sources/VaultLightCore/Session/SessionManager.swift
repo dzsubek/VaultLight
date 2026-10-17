@@ -36,6 +36,9 @@ public enum SystemEvent: Sendable {
 /// Owns the unlocked session (spec 2, 3.4, 3.5): the session key, the search index built from it, and background
 /// sync. Only this type reads the session store, and the session key never leaves it.
 ///
+/// A watchdog checks the policy every `policyCheckInterval` while unlocked, so idle time and lifetimes end the
+/// session even when nothing calls in: opening the panel is itself input and resets the idle time.
+///
 /// Every clear bumps `generation`. Work that awaits (an unlock, a sync, a copy) checks it before using its result,
 /// so nothing finished after a lock can bring the session or index back.
 public actor SessionManager {
@@ -44,31 +47,45 @@ public actor SessionManager {
     private let client: BWClient
     private let store: any SessionStore
     private let clock: SessionClock
+    private let policyCheckInterval: Duration
     private var policy: SessionPolicy
     private var backgroundSyncInterval: Duration?
 
     private var session: SessionKey?
     private var index: SearchIndex?
     private var authenticatedAt: Date?
+    /// Creation date of the stored session this one came from; its maximum age also ends the in-memory session.
+    private var storedSessionCreatedAt: Date?
     private var generation = 0
     private var syncTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
+    private var watchdogTask: Task<Void, Never>?
+    private let clearedContinuation: AsyncStream<Void>.Continuation
+
+    /// Yields each time an unlocked session is cleared, for whatever reason, so the panel can close (spec 4.3).
+    public nonisolated let sessionCleared: AsyncStream<Void>
 
     /// `backgroundSyncInterval` is how often `bw sync` runs while unlocked; `nil` turns background sync off.
+    /// `policyCheckInterval` bounds how late the idle lock and the lifetimes can fire.
     public init(
         client: BWClient, store: any SessionStore, settings: SessionSettings = SessionSettings(),
-        clock: SessionClock = .system, backgroundSyncInterval: Duration? = nil
+        clock: SessionClock = .system, backgroundSyncInterval: Duration? = nil,
+        policyCheckInterval: Duration = .seconds(15)
     ) {
         self.client = client
         self.store = store
         self.clock = clock
         self.policy = SessionPolicy(settings: settings)
         self.backgroundSyncInterval = backgroundSyncInterval
+        self.policyCheckInterval = policyCheckInterval
+        (sessionCleared, clearedContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(1))
     }
 
     deinit {
         syncTask?.cancel()
         eventTask?.cancel()
+        watchdogTask?.cancel()
+        clearedContinuation.finish()
     }
 
     public var isUnlocked: Bool { session != nil }
@@ -109,17 +126,22 @@ public actor SessionManager {
         let key = try await client.unlock(password: masterPassword)
         let index = try await buildIndex(session: key)
         guard generation == self.generation else { return try await refreshState() }
+        let createdAt = clock.now()
         do {
-            try await store.saveSession(key, createdAt: clock.now())
+            try await store.saveSession(key, createdAt: createdAt)
         } catch {
             Self.logger.error("Storing the session failed: \(String(describing: error), privacy: .private)")
         }
         guard generation == self.generation else {
             // A lock or "Lock and forget" ran while the key was being stored.
-            try? await store.deleteSession()
+            do {
+                try await store.deleteSession()
+            } catch {
+                Self.logger.error("Deleting the session failed: \(String(describing: error), privacy: .private)")
+            }
             return try await refreshState()
         }
-        install(key, index: index)
+        install(key, index: index, storedSessionCreatedAt: createdAt)
         return .unlocked
     }
 
@@ -127,7 +149,10 @@ public actor SessionManager {
     /// Throws `SessionStoreError.cancelled` when the user dismisses the sheet; the stored session is kept.
     public func unlockWithStoredSession(reason: String) async throws -> VaultState {
         let generation = generation
-        let verdict = try await storedSessionVerdict()
+        guard let createdAt = try await store.storedSessionDate() else {
+            return try await lockedState(storedSession: nil)
+        }
+        let verdict = try await storedSessionVerdict(createdAt: createdAt)
         guard verdict == .valid else { return try await lockedState(storedSession: verdict) }
         let key: SessionKey
         do {
@@ -147,19 +172,24 @@ public actor SessionManager {
         }
         let index = try await buildIndex(session: key)
         guard generation == self.generation else { return try await refreshState() }
-        install(key, index: index)
+        install(key, index: index, storedSessionCreatedAt: createdAt)
         return .unlocked
     }
 
     // MARK: Clearing (spec 3.5)
 
-    /// Clears the in-memory session if its lifetime or the idle limit has passed. Returns whether it is still
-    /// unlocked. The app calls this on a timer and when the panel opens.
+    /// Clears the in-memory session if its lifetime, the idle limit or the stored session's maximum age has passed.
+    /// Returns whether it is still unlocked. The watchdog, `refreshState`, search and every copy call this.
     @discardableResult
     public func enforcePolicy() -> Bool {
         guard session != nil, let authenticatedAt else { return false }
-        let verdict = policy.inMemorySession(
-            authenticatedAt: authenticatedAt, now: clock.now(), idleTime: clock.idleTime())
+        let now = clock.now()
+        var verdict = policy.inMemorySession(authenticatedAt: authenticatedAt, now: now, idleTime: clock.idleTime())
+        if verdict == .valid, let storedSessionCreatedAt {
+            // The restart rule can't apply inside the boot that unlocked; only the age counts here. The stored item
+            // itself is deleted, and `bw` locked, by the next `refreshState`.
+            verdict = policy.storedSession(createdAt: storedSessionCreatedAt, now: now, bootTime: .distantPast)
+        }
         guard verdict == .valid else {
             clear(because: "\(verdict)")
             return false
@@ -179,8 +209,18 @@ public actor SessionManager {
 
     /// "Sign out" (spec 3.5): the local session goes first, so a failed `bw logout` leaves nothing usable. Clears
     /// the in-memory session and index, deletes the stored session, stops background sync, then runs `bw logout`.
+    ///
+    /// If `bw logout` fails, `bw lock` runs too, which invalidates every session key, including one whose Keychain
+    /// delete failed. The error is still thrown: `bw` is then logged in, so onboarding can't start yet.
     public func signOut() async throws -> VaultState {
-        try await clearAndForget { try await $0.logout() }
+        try await clearAndForget { client in
+            do {
+                try await client.logout()
+            } catch {
+                try? await client.lock()
+                throw error
+            }
+        }
         return .needsOnboarding
     }
 
@@ -188,11 +228,13 @@ public actor SessionManager {
 
     /// Ranked results; empty while locked. Starts no process.
     public func search(_ query: String) -> [SearchResult] {
-        index?.search(query) ?? []
+        guard enforcePolicy() else { return [] }
+        return index?.search(query) ?? []
     }
 
     /// Records a copy for the ranking boost (spec 5.1). Cleared with the index.
     public func recordCopy(id: String) {
+        guard enforcePolicy() else { return }
         index?.recordCopy(id: id)
     }
 
@@ -218,18 +260,24 @@ public actor SessionManager {
         }
     }
 
-    // MARK: Private
-
     /// What `bw list` returned, decoded to metadata only.
-    private struct Listing {
+    fileprivate struct Listing {
         let entries: [VaultEntry]
         let folders: [VaultFolder]
         let organizations: [VaultOrganization]
     }
+}
+
+extension SessionManager {
+    // MARK: Private
 
     /// The stored session's verdict, or `nil` when there is none. An expired one is deleted and `bw` locked.
     private func storedSessionVerdict() async throws -> SessionVerdict? {
         guard let createdAt = try await store.storedSessionDate() else { return nil }
+        return try await storedSessionVerdict(createdAt: createdAt)
+    }
+
+    private func storedSessionVerdict(createdAt: Date) async throws -> SessionVerdict {
         let verdict = policy.storedSession(createdAt: createdAt, now: clock.now(), bootTime: clock.bootTime())
         if verdict != .valid {
             Self.logger.info("Stored session expired: \(String(describing: verdict), privacy: .private)")
@@ -262,11 +310,24 @@ public actor SessionManager {
         return Listing(entries: listed.compactMap(\.entry), folders: folders, organizations: organizations)
     }
 
-    private func install(_ key: SessionKey, index: Listing) {
+    private func install(_ key: SessionKey, index: Listing, storedSessionCreatedAt: Date) {
         session = key
         self.index = SearchIndex(entries: index.entries, folders: index.folders, organizations: index.organizations)
         authenticatedAt = clock.now()
+        self.storedSessionCreatedAt = storedSessionCreatedAt
+        startWatchdog()
         startBackgroundSync()
+    }
+
+    private func startWatchdog() {
+        watchdogTask?.cancel()
+        let interval = policyCheckInterval
+        watchdogTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard let manager = self, await manager.enforcePolicy() else { return }
+            }
+        }
     }
 
     /// Drops the session key, the index (with its copy boost) and background sync. Returns the cancelled sync task.
@@ -277,10 +338,16 @@ public actor SessionManager {
         session = nil
         index = nil
         authenticatedAt = nil
+        storedSessionCreatedAt = nil
+        watchdogTask?.cancel()
+        watchdogTask = nil
         let pendingSync = syncTask
         pendingSync?.cancel()
         syncTask = nil
-        if wasUnlocked { Self.logger.info("Session cleared: \(reason, privacy: .private)") }
+        if wasUnlocked {
+            Self.logger.info("Session cleared: \(reason, privacy: .private)")
+            clearedContinuation.yield()
+        }
         return pendingSync
     }
 

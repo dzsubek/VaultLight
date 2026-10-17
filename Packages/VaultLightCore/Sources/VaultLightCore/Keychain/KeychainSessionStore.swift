@@ -31,6 +31,8 @@ public struct KeychainSessionStore: SessionStore {
     public func readSession(reason: String) async throws -> SessionKey {
         guard try await storedSessionDate() != nil else { throw SessionStoreError.notFound }
         let context = LAContext()
+        // The evaluated context authorizes reads until it is invalidated: limit it to this one.
+        defer { context.invalidate() }
         context.localizedReason = reason
         do {
             _ = try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)

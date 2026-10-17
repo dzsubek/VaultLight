@@ -14,6 +14,7 @@ actor InMemorySessionStore: SessionStore {
     private(set) var readReasons: [String] = []
     private(set) var deleteCount = 0
     var readError: SessionStoreError?
+    var deleteError: SessionStoreError?
 
     init(_ item: Item? = nil) {
         self.item = item
@@ -21,6 +22,10 @@ actor InMemorySessionStore: SessionStore {
 
     func setReadError(_ error: SessionStoreError?) {
         readError = error
+    }
+
+    func setDeleteError(_ error: SessionStoreError?) {
+        deleteError = error
     }
 
     func storedSessionDate() async throws -> Date? {
@@ -40,6 +45,7 @@ actor InMemorySessionStore: SessionStore {
 
     func deleteSession() async throws {
         deleteCount += 1
+        if let deleteError { throw deleteError }
         item = nil
     }
 }
