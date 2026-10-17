@@ -68,15 +68,12 @@ final class FakeBW {
         try? FileManager.default.removeItem(at: dataDirectory)
     }
 
-    /// The fake as a located executable, found through the real locator.
-    func executable() throws -> BWExecutable {
-        try BWLocator(candidates: [Self.executable.path]).locate()
-    }
+    /// Finds only the fake; no Homebrew bin goes on the child PATH, so the fake's `python3` is /usr/bin's.
+    static let locator = BWLocator(candidates: [executable.path], homebrewBinDirectories: [])
 
     /// A client wired to this fake's data directory. HOME also points there, away from the user's.
-    func client(timeouts: BWClient.Timeouts = .default) throws -> BWClient {
-        BWClient(
-            executable: try executable(), dataDirectory: dataDirectory, home: dataDirectory.path, timeouts: timeouts)
+    func client(timeouts: BWClient.Timeouts = .default) -> BWClient {
+        BWClient(locator: Self.locator, dataDirectory: dataDirectory, home: dataDirectory.path, timeouts: timeouts)
     }
 
     /// Writes `fake-config.json`. Keys are documented at the top of the fake `bw` script.

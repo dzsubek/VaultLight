@@ -11,7 +11,7 @@ struct BWClientQueueTests {
     @Test func callsRunOneAtATime() async throws {
         let fake = try FakeBW()
         try fake.configure(["delay": ["status": 0.3]])
-        let client = try fake.client()
+        let client = fake.client()
         try await withThrowingTaskGroup(of: BWStatus.self) { group in
             for _ in 0..<4 { group.addTask { try await client.status() } }
             for try await status in group { #expect(status.state == .unauthenticated) }
@@ -33,7 +33,7 @@ struct BWClientQueueTests {
     @Test func syncUsesTheSyncTimeout() async throws {
         let fake = try FakeBW.unlocked()
         try fake.configure(["delay": ["sync": 1.5, "status": 30]])
-        let client = try fake.client(
+        let client = fake.client(
             timeouts: BWClient.Timeouts(standard: .milliseconds(700), sync: .seconds(10), killGrace: .seconds(1)))
         await #expect(throws: BWError.timeout) { try await client.status(session: FakeBW.session) }
         try await client.sync(session: FakeBW.session)
@@ -44,18 +44,46 @@ struct BWClientQueueTests {
     @Test func missingBinaryIsNotInstalled() async throws {
         let fake = try FakeBW()
         let client = BWClient(
-            executable: BWExecutable(url: URL(fileURLWithPath: "/nonexistent/bw"), searchPath: "/usr/bin:/bin"),
+            locator: BWLocator(candidates: ["/nonexistent/bw"], homebrewBinDirectories: []),
             dataDirectory: fake.dataDirectory, home: fake.dataDirectory.path)
         await #expect(throws: BWError.notInstalled) { try await client.status() }
+    }
+
+    /// The binary is located and checked again right before every call, so a later swap, a `brew upgrade` or a
+    /// permission change is seen.
+    @Test func binaryIsCheckedBeforeEveryCall() async throws {
+        let fake = try FakeBW()
+        let folder = fake.dataDirectory.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let copy = folder.appendingPathComponent("bw")
+        try FileManager.default.copyItem(at: FakeBW.executable, to: copy)
+        let client = BWClient(
+            locator: BWLocator(candidates: [copy.path], homebrewBinDirectories: []), dataDirectory: fake.dataDirectory,
+            home: fake.dataDirectory.path)
+        _ = try await client.version()
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: copy.path)
+        await #expect(throws: BWError.unsafeBinary) { try await client.version() }
+
+        try FileManager.default.removeItem(at: copy)
+        await #expect(throws: BWError.notInstalled) { try await client.version() }
     }
 
     @Test func dataDirectoryIsCreatedPrivate() async throws {
         let fake = try FakeBW()
         let directory = fake.dataDirectory.appendingPathComponent("VaultLight/bw", isDirectory: true)
-        let client = BWClient(
-            executable: try fake.executable(), dataDirectory: directory, home: fake.dataDirectory.path)
+        let client = BWClient(locator: FakeBW.locator, dataDirectory: directory, home: fake.dataDirectory.path)
         _ = try await client.status()
         let attributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
+    }
+
+    /// A data folder that already exists with wider permissions is tightened before use.
+    @Test func existingDataDirectoryIsMadePrivate() async throws {
+        let fake = try FakeBW()
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.dataDirectory.path)
+        _ = try await fake.client().status()
+        let attributes = try FileManager.default.attributesOfItem(atPath: fake.dataDirectory.path)
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
     }
 

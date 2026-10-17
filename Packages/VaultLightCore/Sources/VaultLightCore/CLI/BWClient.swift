@@ -111,17 +111,22 @@ public actor BWClient {
 
     private static let logger = Logger(subsystem: "com.vaultlight.core", category: "bw")
 
-    private let executable: BWExecutable
+    private let locator: BWLocator
+    private let configuredPath: String?
     private let dataDirectory: URL
     private let home: String
     private let timeouts: Timeouts
     private var queueTail: Task<Void, Never>?
 
+    /// `configuredPath` is the Settings `bw` path (nil for auto-detect). The binary is located and checked again
+    /// right before every call, so a swapped binary, a `brew upgrade` or a permission change is seen.
     public init(
-        executable: BWExecutable, dataDirectory: URL = BWClient.defaultDataDirectory,
+        locator: BWLocator = BWLocator(), configuredPath: String? = nil,
+        dataDirectory: URL = BWClient.defaultDataDirectory,
         home: String = FileManager.default.homeDirectoryForCurrentUser.path, timeouts: Timeouts = .default
     ) {
-        self.executable = executable
+        self.locator = locator
+        self.configuredPath = configuredPath
         self.dataDirectory = dataDirectory
         self.home = home
         self.timeouts = timeouts
@@ -135,10 +140,12 @@ public actor BWClient {
         return try Self.decode(BWStatus.self, from: output.stdout)
     }
 
-    /// `bw config server <url>`. Only http(s) URLs with a host; only works while logged out.
+    /// `bw config server <url>`. Only http(s) URLs with a host and no credentials, query or fragment, so nothing
+    /// secret reaches argv. Only works while logged out.
     public func configServer(_ url: URL) async throws {
         guard let scheme = url.scheme?.lowercased(), ["https", "http"].contains(scheme),
-            let host = url.host(), !host.isEmpty
+            let host = url.host(), !host.isEmpty, url.user == nil, url.password == nil, url.query == nil,
+            url.fragment == nil
         else { throw BWError.invalidArgument }
         try await run(["config", "server", url.absoluteString])
     }
@@ -236,9 +243,9 @@ public actor BWClient {
 
     /// HOME, PATH, BITWARDENCLI_APPDATA_DIR and the call's secrets: nothing inherited (spec 7.1).
     static func environment(
-        executable: BWExecutable, home: String, dataDirectory: URL, secrets: [String: String]
+        searchPath: String, home: String, dataDirectory: URL, secrets: [String: String]
     ) -> [String: String] {
-        let base = ["HOME": home, "PATH": executable.searchPath, "BITWARDENCLI_APPDATA_DIR": dataDirectory.path]
+        let base = ["HOME": home, "PATH": searchPath, "BITWARDENCLI_APPDATA_DIR": dataDirectory.path]
         return base.merging(secrets) { base, _ in base }
     }
 
@@ -278,32 +285,52 @@ public actor BWClient {
         return try Self.text(output.stdout)
     }
 
+    /// Creates the CLI data folder as 0700, or tightens an existing one; refuses one owned by someone else.
+    /// It holds the CLI's encrypted vault and keys (spec 7.1 "Isolated CLI state").
+    private static func preparePrivateDirectory(_ directory: URL) throws {
+        let manager = FileManager.default
+        do {
+            try manager.createDirectory(
+                at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let attributes = try manager.attributesOfItem(atPath: directory.path)
+            guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
+                throw BWError.unknown("The bw data folder belongs to another user")
+            }
+            if (attributes[.posixPermissions] as? NSNumber)?.intValue != 0o700 {
+                try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            }
+        } catch let error as BWError {
+            throw error
+        } catch {
+            throw BWError.unknown("Can't prepare the bw data folder")
+        }
+    }
+
     /// Runs one `bw` call after every earlier call has finished, and maps failures to `BWError`.
     @discardableResult
     private func run(_ arguments: [String], secrets: [String: String] = [:], timeout: Duration? = nil)
         async throws -> ProcessOutput
     {
-        let executable = executable
+        let locator = locator
+        let configuredPath = configuredPath
         let dataDirectory = dataDirectory
-        let environment = Self.environment(
-            executable: executable, home: home, dataDirectory: dataDirectory, secrets: secrets)
+        let home = home
         let killGrace = timeouts.killGrace
         let timeout = timeout ?? timeouts.standard
 
         let previous = queueTail
         let call = Task { () async throws -> ProcessOutput in
             await previous?.value
-            do {
-                try FileManager.default.createDirectory(
-                    at: dataDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            } catch {
-                throw BWError.unknown("Can't create the bw data folder")
-            }
+            let executable = try locator.locate(configuredPath: configuredPath)
+            try Self.preparePrivateDirectory(dataDirectory)
+            let environment = Self.environment(
+                searchPath: executable.searchPath, home: home, dataDirectory: dataDirectory, secrets: secrets)
             do {
                 return try await ProcessRunner.run(
                     executable.url, arguments: arguments + ["--nointeraction"], environment: environment,
                     timeout: timeout, killGrace: killGrace)
             } catch {
+                // ProcessRunner throws only when the launch fails: the binary vanished or can't be executed.
                 throw BWError.notInstalled
             }
         }

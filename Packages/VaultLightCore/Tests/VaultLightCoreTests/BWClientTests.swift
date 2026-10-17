@@ -33,20 +33,19 @@ struct BWClientTests {
 
     @Test func environmentIsTheBaseKeysPlusTheCallsSecret() throws {
         let fake = try FakeBW()
-        let executable = try fake.executable()
         let environment = BWClient.environment(
-            executable: executable, home: "/Users/x", dataDirectory: fake.dataDirectory,
-            secrets: ["BW_SESSION": "s"])
+            searchPath: "/opt/homebrew/bin:/usr/bin:/bin", home: "/Users/x", dataDirectory: fake.dataDirectory,
+            secrets: ["BW_SESSION": "s", "HOME": "/attacker"])
         #expect(
             environment == [
-                "HOME": "/Users/x", "PATH": executable.searchPath,
+                "HOME": "/Users/x", "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
                 "BITWARDENCLI_APPDATA_DIR": fake.dataDirectory.path, "BW_SESSION": "s",
             ])
     }
 
     @Test func callsWithoutSecretsGetOnlyTheBaseEnvironment() async throws {
         let fake = try FakeBW()
-        let client = try fake.client()
+        let client = fake.client()
         _ = try await client.version()
         #expect(try fake.lastEnvironmentKeys() == Self.baseKeys)
         #expect(try fake.lastArguments() == ["--version", "--nointeraction"])
@@ -72,7 +71,7 @@ struct BWClientTests {
 
     @Test func loginAPIKeyPassesTheKeyInTheEnvironment() async throws {
         let fake = try FakeBW()
-        let client = try fake.client()
+        let client = fake.client()
         try await client.loginAPIKey(clientID: FakeBW.Defaults.clientID, clientSecret: FakeBW.Defaults.clientSecret)
         #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_CLIENTID", "BW_CLIENTSECRET"]))
         #expect(try fake.lastArguments() == ["login", "--apikey", "--nointeraction"])
@@ -82,7 +81,7 @@ struct BWClientTests {
 
     @Test func loginPasswordPassesThePasswordThroughPasswordEnv() async throws {
         let fake = try FakeBW()
-        let client = try fake.client()
+        let client = fake.client()
         try await client.loginPassword(email: FakeBW.Defaults.email, password: FakeBW.Defaults.masterPassword)
         #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union([BWClient.passwordVariable]))
         #expect(
@@ -95,7 +94,7 @@ struct BWClientTests {
     @Test func loginPasswordWithTwoFactorCode() async throws {
         let fake = try FakeBW()
         try fake.configure(["two_factor_code": "123456"])
-        let client = try fake.client()
+        let client = fake.client()
         let email = FakeBW.Defaults.email
         let password = FakeBW.Defaults.masterPassword
 
@@ -116,7 +115,7 @@ struct BWClientTests {
 
     @Test func loginFailuresAreTyped() async throws {
         let fake = try FakeBW()
-        let client = try fake.client()
+        let client = fake.client()
         await #expect(throws: BWError.invalidPassword) {
             try await client.loginPassword(email: FakeBW.Defaults.email, password: "wrong")
         }
@@ -132,7 +131,7 @@ struct BWClientTests {
     @Test func unlockReturnsTheSessionKey() async throws {
         let fake = try FakeBW()
         try fake.setState("locked")
-        let client = try fake.client()
+        let client = fake.client()
         await #expect(throws: BWError.invalidPassword) { try await client.unlock(password: "wrong") }
         let key = try await client.unlock(password: FakeBW.Defaults.masterPassword)
         #expect(key == FakeBW.session)
@@ -153,7 +152,7 @@ struct BWClientTests {
 
     @Test func listsDecodeIntoTheCallersType() async throws {
         let fake = try FakeBW.unlocked()
-        let client = try fake.client()
+        let client = fake.client()
 
         let items: [Named] = try await client.listItems(session: FakeBW.session)
         #expect(items.count == 15)
@@ -190,7 +189,7 @@ struct BWClientTests {
 
     @Test func getTOTPReturnsTheCode() async throws {
         let fake = try FakeBW.unlocked()
-        let client = try fake.client()
+        let client = fake.client()
         #expect(try await client.getTOTP(id: FakeBW.Item.github, session: FakeBW.session) == FakeBW.Defaults.totpCode)
         #expect(try fake.lastArguments() == ["get", "totp", FakeBW.Item.github, "--raw", "--nointeraction"])
         #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
@@ -209,7 +208,7 @@ struct BWClientTests {
 
     @Test func syncPassesTheSessionAndReportsOffline() async throws {
         let fake = try FakeBW.unlocked()
-        let client = try fake.client()
+        let client = fake.client()
         try await client.sync(session: FakeBW.session)
         #expect(try fake.lastArguments() == ["sync", "--nointeraction"])
         #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
@@ -220,7 +219,7 @@ struct BWClientTests {
 
     @Test func lockAndLogout() async throws {
         let fake = try FakeBW.unlocked()
-        let client = try fake.client()
+        let client = fake.client()
         try await client.lock()
         #expect(try await client.status(session: FakeBW.session).state == .locked)
         try await client.logout()
@@ -229,14 +228,14 @@ struct BWClientTests {
 
     @Test func configServerChangesTheServer() async throws {
         let fake = try FakeBW()
-        let client = try fake.client()
+        let client = fake.client()
         try await client.configServer(#require(URL(string: "https://vault.example.test")))
         #expect(try await client.status().serverURL == "https://vault.example.test")
     }
 
     @Test func versionIsParsedAndCheckedAgainstTheMinimum() async throws {
         let fake = try FakeBW()
-        let client = try fake.client()
+        let client = fake.client()
         #expect(try await client.version() == BWVersion(components: [2026, 9, 0]))
         try fake.configure(["version": "2024.12.1"])
         await #expect(throws: BWError.tooOld(installed: "2024.12.1")) { try await client.version() }
@@ -255,7 +254,7 @@ struct BWClientTests {
     /// Values that would read as options (or are not what they claim) are refused before a process starts.
     @Test func unsafeArgumentsNeverStartAProcess() async throws {
         let fake = try FakeBW.unlocked()
-        let client = try fake.client()
+        let client = fake.client()
         await #expect(throws: BWError.invalidArgument) {
             try await client.getPassword(id: "--session", session: FakeBW.session)
         }
@@ -269,7 +268,10 @@ struct BWClientTests {
             try await client.loginPassword(
                 email: FakeBW.Defaults.email, password: "x", twoFactor: BWTwoFactor(method: .email, code: "-1"))
         }
-        for server in ["ftp://vault.example.test", "file:///etc", "https://"] {
+        for server in [
+            "ftp://vault.example.test", "file:///etc", "https://", "https://user:pw@vault.example.test",
+            "https://vault.example.test/?token=x", "https://vault.example.test/#x",
+        ] {
             await #expect(throws: BWError.invalidArgument) {
                 try await client.configServer(#require(URL(string: server)))
             }

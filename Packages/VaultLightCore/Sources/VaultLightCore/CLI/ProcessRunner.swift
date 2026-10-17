@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// What a finished child process left behind.
 struct ProcessOutput: Sendable {
@@ -36,7 +37,11 @@ enum ProcessRunner {
         process.standardError = stderrPipe
 
         let (exits, exitContinuation) = AsyncStream.makeStream(of: Exit.self)
+        // Set on exit so the watchdog never signals a reaped PID that another process may have reused.
+        // A tiny window remains: Foundation reaps the child just before it calls the handler.
+        let exited = OSAllocatedUnfairLock(initialState: false)
         process.terminationHandler = { finished in
+            exited.withLock { $0 = true }
             exitContinuation.yield(
                 Exit(status: finished.terminationStatus, bySignal: finished.terminationReason == .uncaughtSignal))
             exitContinuation.finish()
@@ -55,8 +60,9 @@ enum ProcessRunner {
         let pid = process.processIdentifier
         let watchdog = Task<Bool, Never> {
             do { try await Task.sleep(for: timeout) } catch { return false }
-            kill(pid, SIGTERM)
-            if (try? await Task.sleep(for: killGrace)) != nil { kill(pid, SIGKILL) }
+            func signal(_ number: Int32) { exited.withLock { if !$0 { kill(pid, number) } } }
+            signal(SIGTERM)
+            if (try? await Task.sleep(for: killGrace)) != nil { signal(SIGKILL) }
             return true
         }
 
