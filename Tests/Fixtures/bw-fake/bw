@@ -4,8 +4,8 @@
 It behaves enough like `bw` for the CLI wrapper's tests, and it is strict about
 the spec's process rules so violations fail loudly:
 
-  * exit 99  a secret (master password, session key, API secret, item password)
-             appeared in argv
+  * exit 99  a secret (master password, session key, API key id or secret, item
+             password, TOTP seed or code) appeared anywhere inside an argument
   * exit 98  `--nointeraction` was missing (when require_nointeraction is on)
   * exit 97  BITWARDENCLI_APPDATA_DIR was not set (the wrapper must isolate CLI state)
 
@@ -14,7 +14,9 @@ wrapper passes a minimal environment and FAKE_* variables would not survive it:
 
   fake-state.json   {"status": "unauthenticated|locked|unlocked", "server": "..."}
   fake-config.json  optional overrides, written by tests (see DEFAULTS below)
-  fake-calls.jsonl  one line per invocation: {"argv": [...], "env_keys": [...]}
+  fake-calls.jsonl  one line per invocation: {"argv": [...], "env_keys": [...], "concurrent": bool}
+                    "concurrent" is true when another call was still running (fake-running
+                    marker present). A call killed by a signal leaves the marker behind.
 
 Config keys (fake-config.json):
   master_password, session_key, email, client_id, client_secret, version,
@@ -26,6 +28,7 @@ Config keys (fake-config.json):
   initial_status    status to start from when no state file exists yet
 """
 
+import atexit
 import json
 import os
 import signal
@@ -79,26 +82,42 @@ def main(argv):
     config = dict(DEFAULTS)
     config.update(load_json(os.path.join(data_dir, "fake-config.json"), {}))
 
+    marker = os.path.join(data_dir, "fake-running")
+    try:
+        os.close(os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+        concurrent = False
+        atexit.register(lambda: os.path.exists(marker) and os.remove(marker))
+    except FileExistsError:
+        concurrent = True
+
     with open(os.path.join(data_dir, "fake-calls.jsonl"), "a", encoding="utf-8") as log:
-        log.write(json.dumps({"argv": argv, "env_keys": sorted(os.environ.keys())}) + "\n")
+        log.write(json.dumps({"argv": argv, "env_keys": sorted(os.environ.keys()),
+                              "concurrent": concurrent}) + "\n")
 
     if config["ignore_sigterm"]:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
     items = load_json(os.path.join(FIXTURES, "items.json"), [])
 
-    secrets = {config["master_password"], config["session_key"], config["client_secret"]}
-    secrets.update(i.get("login", {}).get("password") for i in items if i.get("login"))
+    # The 2FA code is not here: spec 7.2 passes it with --code.
+    secrets = {config["master_password"], config["session_key"], config["client_id"],
+               config["client_secret"], config["totp_code"]}
+    for item in items:
+        login = item.get("login") or {}
+        secrets.update((login.get("password"), login.get("totp")))
+        if login.get("totp") and "secret=" in login["totp"]:
+            secrets.add(login["totp"].split("secret=", 1)[1].split("&", 1)[0])
     secrets.discard(None)
-    if any(arg in secrets for arg in argv):
+    secrets.discard("")
+    if any(secret in arg for arg in argv for secret in secrets):
         fail("fake-bw: secret found in arguments", 99)
-
-    if argv in (["--version"], ["--version", "--nointeraction"], ["--nointeraction", "--version"]):
-        print(config["version"])
-        return 0
 
     if config["require_nointeraction"] and "--nointeraction" not in argv:
         fail("fake-bw: --nointeraction missing", 98)
+
+    if argv in (["--version", "--nointeraction"], ["--nointeraction", "--version"], ["--version"]):
+        print(config["version"])
+        return 0
 
     flags, positional = {}, []
     index = 0
