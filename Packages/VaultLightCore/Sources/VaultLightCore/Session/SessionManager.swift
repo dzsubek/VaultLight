@@ -126,7 +126,7 @@ public actor SessionManager {
     public func unlock(masterPassword: String) async throws -> VaultState {
         let generation = generation
         let key = try await client.unlock(password: masterPassword)
-        let index = try await buildIndex(session: key)
+        let listing = try await listVault(session: key)
         guard generation == self.generation else { return try await refreshState() }
         let createdAt = clock.now()
         do {
@@ -143,7 +143,7 @@ public actor SessionManager {
             }
             return try await refreshState()
         }
-        install(key, index: index, storedSessionCreatedAt: createdAt)
+        install(key, listing: listing, storedSessionCreatedAt: createdAt)
         return .unlocked
     }
 
@@ -172,9 +172,9 @@ public actor SessionManager {
             try await store.deleteSession()
             return .needsOnboarding
         }
-        let index = try await buildIndex(session: key)
+        let listing = try await listVault(session: key)
         guard generation == self.generation else { return try await refreshState() }
-        install(key, index: index, storedSessionCreatedAt: createdAt)
+        install(key, listing: listing, storedSessionCreatedAt: createdAt)
         return .unlocked
     }
 
@@ -256,22 +256,22 @@ public actor SessionManager {
         try await withSession { client, session in
             try await client.sync(session: session)
             let generation = self.generation
-            let rebuilt = try await self.buildIndex(session: session)
+            let rebuilt = try await self.listVault(session: session)
             guard generation == self.generation else { throw BWError.locked }
             self.index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
         }
-    }
-
-    /// What `bw list` returned, decoded to metadata only.
-    fileprivate struct Listing {
-        let entries: [VaultEntry]
-        let folders: [VaultFolder]
-        let organizations: [VaultOrganization]
     }
 }
 
 extension SessionManager {
     // MARK: Private
+
+    /// What `bw list` returned, decoded to metadata only.
+    private struct Listing {
+        let entries: [VaultEntry]
+        let folders: [VaultFolder]
+        let organizations: [VaultOrganization]
+    }
 
     /// The stored session's verdict, or `nil` when there is none. An expired one is deleted and `bw` locked.
     private func storedSessionVerdict() async throws -> SessionVerdict? {
@@ -305,16 +305,16 @@ extension SessionManager {
         return try await client.status().state == .unauthenticated ? .needsOnboarding : .needsMasterPassword(reason)
     }
 
-    private func buildIndex(session: SessionKey) async throws -> Listing {
+    private func listVault(session: SessionKey) async throws -> Listing {
         let listed: [VaultEntry.Listed] = try await client.listItems(session: session)
         let folders: [VaultFolder] = try await client.listFolders(session: session)
         let organizations: [VaultOrganization] = try await client.listOrganizations(session: session)
         return Listing(entries: listed.compactMap(\.entry), folders: folders, organizations: organizations)
     }
 
-    private func install(_ key: SessionKey, index: Listing, storedSessionCreatedAt: Date) {
+    private func install(_ key: SessionKey, listing: Listing, storedSessionCreatedAt: Date) {
         session = key
-        self.index = SearchIndex(entries: index.entries, folders: index.folders, organizations: index.organizations)
+        index = SearchIndex(entries: listing.entries, folders: listing.folders, organizations: listing.organizations)
         authenticatedAt = clock.now()
         self.storedSessionCreatedAt = storedSessionCreatedAt
         startWatchdog()

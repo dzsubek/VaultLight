@@ -139,7 +139,7 @@ extension SessionManagerTests {
         let store = InMemorySessionStore()
         let manager = try await unlockedManager(store: store)
         await manager.setBackgroundSyncInterval(.milliseconds(50))
-        try await eventually { try commands().filter { $0 == "sync" }.count >= 2 }
+        try await eventually { try count(of: "sync") >= 2 }
 
         #expect(try await manager.signOut() == .needsOnboarding)
         try await expectLocked(manager)
@@ -180,13 +180,13 @@ extension SessionManagerTests {
     @Test func backgroundSyncRunsWhileUnlockedAndStopsOnLock() async throws {
         let manager = try await unlockedManager()
         await manager.setBackgroundSyncInterval(.milliseconds(50))
-        try await eventually { try commands().filter { $0 == "sync" }.count >= 2 }
+        try await eventually { try count(of: "sync") >= 2 }
         await manager.lockNow()
         // A sync that was already running may finish; none starts afterwards.
         try await Task.sleep(for: .milliseconds(200))
-        let syncs = try commands().filter { $0 == "sync" }.count
+        let syncs = try count(of: "sync")
         try await Task.sleep(for: .milliseconds(300))
-        #expect(try commands().filter { $0 == "sync" }.count == syncs)
+        #expect(try count(of: "sync") == syncs)
     }
 
     @Test func syncRebuildsTheIndex() async throws {

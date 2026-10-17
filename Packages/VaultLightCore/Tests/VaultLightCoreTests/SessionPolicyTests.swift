@@ -7,8 +7,9 @@ import Testing
 @Suite("SessionPolicy")
 struct SessionPolicyTests {
     private static let now = Date(timeIntervalSince1970: 1_760_700_000)
-    private static let bootedADayAgo = now.addingTimeInterval(-86_400)
+    private static let bootedADayAgo = now.addingTimeInterval(-day)
     private static let minute: TimeInterval = 60
+    private static let hour: TimeInterval = 3_600
     private static let day: TimeInterval = 86_400
 
     @Test func defaultsMatchSpecSection8() {
@@ -22,7 +23,8 @@ struct SessionPolicyTests {
     @Test func optionsAreTheSpecValues() {
         #expect(
             SessionSettings.StoredMaximumAge.allCases.map(\.seconds) == [1 * Self.day, 7 * Self.day, 30 * Self.day])
-        #expect(SessionSettings.InMemoryLifetime.allCases.map(\.seconds) == [15 * Self.minute, 3_600, 8 * 3_600])
+        #expect(
+            SessionSettings.InMemoryLifetime.allCases.map(\.seconds) == [15 * Self.minute, Self.hour, 8 * Self.hour])
         #expect(
             SessionSettings.IdleLock.allCases.map(\.seconds) == [
                 nil, 5 * Self.minute, 15 * Self.minute, 30 * Self.minute,
@@ -93,7 +95,7 @@ struct SessionPolicyTests {
         let policy = SessionPolicy(settings: SessionSettings(idleLock: idleLock))
         let recent = Self.now.addingTimeInterval(-10)
         guard let limit = idleLock.seconds else {
-            #expect(policy.inMemorySession(authenticatedAt: recent, now: Self.now, idleTime: 7 * 3_600) == .valid)
+            #expect(policy.inMemorySession(authenticatedAt: recent, now: Self.now, idleTime: 7 * Self.hour) == .valid)
             return
         }
         #expect(policy.inMemorySession(authenticatedAt: recent, now: Self.now, idleTime: limit - 1) == .valid)

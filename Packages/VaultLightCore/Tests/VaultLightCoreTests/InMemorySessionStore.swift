@@ -13,8 +13,8 @@ actor InMemorySessionStore: SessionStore {
     private(set) var item: Item?
     private(set) var readReasons: [String] = []
     private(set) var deleteCount = 0
-    var readError: SessionStoreError?
-    var deleteError: SessionStoreError?
+    private var readError: SessionStoreError?
+    private var deleteError: SessionStoreError?
 
     init(_ item: Item? = nil) {
         self.item = item

@@ -58,6 +58,10 @@ struct SessionManagerTests {
         try fake.calls().compactMap { ($0["argv"] as? [String])?.first }
     }
 
+    func count(of command: String) throws -> Int {
+        try commands().filter { $0 == command }.count
+    }
+
     /// Waits for a condition that another task makes true, failing after a minute.
     func eventually(_ condition: () async throws -> Bool) async throws {
         let deadline = ContinuousClock.now + .seconds(60)
@@ -116,8 +120,7 @@ struct SessionManagerTests {
 
     @Test func maximumAgeComesFromTheSettings() async throws {
         let store = InMemorySessionStore(storedItem(age: 2 * 86_400))
-        let settings = SessionSettings(
-            storedMaximumAge: .oneDay, requireMasterPasswordAfterRestart: false)
+        let settings = SessionSettings(storedMaximumAge: .oneDay, requireMasterPasswordAfterRestart: false)
         #expect(
             try await manager(store: store, settings: settings).refreshState()
                 == .needsMasterPassword(.storedSessionExpired))
