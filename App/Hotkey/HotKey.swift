@@ -1,0 +1,63 @@
+import Carbon.HIToolbox
+
+/// The global shortcut ⌘⇧Space, registered with Carbon `RegisterEventHotKey`, which needs no Accessibility
+/// permission (spec 4.1).
+@MainActor
+final class HotKey {
+    private let onPress: @MainActor () -> Void
+    // Released in `stop()` and `deinit`; Carbon handles aren't Sendable.
+    nonisolated(unsafe) private var hotKeyRef: EventHotKeyRef?
+    nonisolated(unsafe) private var handlerRef: EventHandlerRef?
+
+    init(onPress: @escaping @MainActor () -> Void) {
+        self.onPress = onPress
+    }
+
+    deinit {
+        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let handlerRef { RemoveEventHandler(handlerRef) }
+    }
+
+    /// Returns `false` when the system refuses the shortcut (another app owns it).
+    func register() -> Bool {
+        stop()
+        var spec = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        // The context is passed as a pointer, not captured: a C function pointer can't capture anything.
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        guard
+            InstallEventHandler(
+                GetApplicationEventTarget(), hotKeyHandler, 1, &spec, context, &handlerRef) == noErr
+        else { return false }
+
+        let identifier = EventHotKeyID(signature: OSType(0x564C_484B), id: 1)  // "VLHK"
+        let status = RegisterEventHotKey(
+            UInt32(kVK_Space), UInt32(cmdKey | shiftKey), identifier, GetApplicationEventTarget(), 0, &hotKeyRef)
+        if status != noErr {
+            stop()
+            return false
+        }
+        return true
+    }
+
+    func stop() {
+        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let handlerRef { RemoveEventHandler(handlerRef) }
+        hotKeyRef = nil
+        handlerRef = nil
+    }
+
+    fileprivate func fire() {
+        onPress()
+    }
+}
+
+/// Runs on the main thread (the application event target). Hops to the main actor to call the closure.
+private func hotKeyHandler(
+    _ call: EventHandlerCallRef?, _ event: EventRef?, _ context: UnsafeMutableRawPointer?
+) -> OSStatus {
+    guard let context else { return OSStatus(eventNotHandledErr) }
+    let hotKey = Unmanaged<HotKey>.fromOpaque(context).takeUnretainedValue()
+    Task { @MainActor in hotKey.fire() }
+    return noErr
+}
