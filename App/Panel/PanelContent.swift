@@ -46,7 +46,7 @@ enum PanelMetrics {
     static let searchHeight: CGFloat = 60
     static let dividerHeight: CGFloat = 1
     static let rowHeight: CGFloat = 50
-    static let sectionHeaderHeight: CGFloat = 30
+    static let sectionHeaderHeight: CGFloat = 25
     static let listPadding: CGFloat = 8
     static let maxVisibleRows = 8
     static let footerHeight: CGFloat = 38

@@ -44,8 +44,9 @@ private struct UnlockedView: View {
                 .accessibilityHidden(true)
             TextField("Search vault", text: $controller.queryText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 22))
+                .font(.system(size: 22, weight: .regular))
                 .tint(Theme.teal)
+                .autocorrectionDisabled()
                 .focused($fieldFocused)
                 .accessibilityLabel("Search vault")
                 .onChange(of: controller.queryText) {
@@ -71,6 +72,7 @@ private struct UnlockedView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 12)
+                                .padding(.bottom, 5)
                                 .frame(height: PanelMetrics.sectionHeaderHeight, alignment: .bottom)
                         }
                         ForEach(Array(model.results.enumerated()), id: \.element.id) { index, result in

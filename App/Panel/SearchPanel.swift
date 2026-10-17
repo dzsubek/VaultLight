@@ -25,6 +25,9 @@ final class SearchPanel: NSPanel {
         isMovable = false
         isFloatingPanel = true
         animationBehavior = .none
+        // Names and usernames must not reach a screen recording, and the panel is never restored on relaunch.
+        sharingType = .none
+        isRestorable = false
     }
 
     override var canBecomeKey: Bool { true }
@@ -33,6 +36,24 @@ final class SearchPanel: NSPanel {
     override func resignKey() {
         super.resignKey()
         onResignKey?()
+    }
+
+    /// The field editor sends what is typed to system services: spell checking, completion and substitution stay
+    /// off (queries are vault names and hosts, not prose).
+    override func fieldEditor(_ createFlag: Bool, for object: Any?) -> NSText? {
+        let editor = super.fieldEditor(createFlag, for: object)
+        if let textView = editor as? NSTextView {
+            textView.isContinuousSpellCheckingEnabled = false
+            textView.isGrammarCheckingEnabled = false
+            textView.isAutomaticSpellingCorrectionEnabled = false
+            textView.isAutomaticTextCompletionEnabled = false
+            textView.isAutomaticQuoteSubstitutionEnabled = false
+            textView.isAutomaticDashSubstitutionEnabled = false
+            textView.isAutomaticTextReplacementEnabled = false
+            textView.isAutomaticLinkDetectionEnabled = false
+            textView.isAutomaticDataDetectionEnabled = false
+        }
+        return editor
     }
 
     override func cancelOperation(_ sender: Any?) {

@@ -25,9 +25,9 @@ struct LockedView: View {
     @ViewBuilder private var header: some View {
         switch controller.content {
         case .masterPassword(_, let busy):
-            MasterPasswordField(busy: busy, openCount: controller.openCount) { password in
-                Task { await controller.unlock(masterPassword: password) }
-            }
+            MasterPasswordField(
+                busy: busy, openCount: controller.openCount, closeCount: controller.closeCount,
+                onSubmit: { password in Task { await controller.unlock(masterPassword: password) } })
         case .touchID:
             title(symbol: "touchid", text: "Touch ID to unlock")
         case .checking:
@@ -73,6 +73,7 @@ struct LockedView: View {
 private struct MasterPasswordField: View {
     let busy: Bool
     let openCount: Int
+    let closeCount: Int
     let onSubmit: (String) -> Void
 
     @State private var password = ""
@@ -87,6 +88,7 @@ private struct MasterPasswordField: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 22))
                 .tint(Theme.teal)
+                .autocorrectionDisabled()
                 .focused($focused)
                 .disabled(busy)
                 .accessibilityLabel("Master password")
@@ -103,6 +105,8 @@ private struct MasterPasswordField: View {
             password = ""
             focused = true
         }
+        // Whatever closes the panel (Escape, click outside, cleared session, hotkey) also drops the typed text.
+        .onChange(of: closeCount) { password = "" }
         .onChange(of: busy) {
             if !busy { focused = true }
         }

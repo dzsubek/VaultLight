@@ -17,6 +17,9 @@ final class PanelController {
     var queryText = ""
     /// Bumped on every open so the view puts focus in the search field again.
     private(set) var openCount = 0
+    /// Bumped on every close so the locked view drops a half-typed master password (no secret outlives
+    /// the panel).
+    private(set) var closeCount = 0
 
     @ObservationIgnored let panel: SearchPanel
     @ObservationIgnored private let session: SessionManager?
@@ -69,16 +72,37 @@ final class PanelController {
         defer { isOpening = false }
         anchor = NSEvent.mouseLocation
         queryText = ""
-        // A search is a few microseconds, so results are ready before the panel appears (no stale rows).
+        // The state comes first: an expired in-memory session is found (and cleared) here, so search results are
+        // loaded only for a session that is still valid. A search is a few microseconds, so results are ready
+        // before the panel appears (no stale rows).
+        var needsTouchID = false
+        if let session {
+            do {
+                let state = try await session.refreshState()
+                switch state {
+                case .unlocked:
+                    content = .unlocked
+                case .storedSessionAvailable:
+                    // Touch ID needs the panel on screen (it is up while the sheet shows).
+                    content = .touchID(canceled: false)
+                    needsTouchID = true
+                case .needsMasterPassword, .needsOnboarding:
+                    await apply(state)
+                }
+            } catch {
+                content = .problem(PanelProblem(error))
+            }
+        }
         if content == .unlocked { await viewModel.panelWillOpen() }
         applyFrame()
         openCount += 1
         panel.makeKeyAndOrderFront(nil)  // never NSApp.activate: the previous app stays frontmost
         installKeyMonitor()
-        await refreshVaultState()
+        if needsTouchID { await unlockWithTouchID() }
     }
 
     func close() {
+        closeCount += 1
         removeKeyMonitor()
         panel.orderOut(nil)
     }
@@ -88,12 +112,14 @@ final class PanelController {
         close()
     }
 
-    /// The in-memory session was cleared (spec 3.5, 4.3).
+    /// The in-memory session was cleared (spec 3.5, 4.3). While the panel is opening this is a content change
+    /// (the state read found an expired session and `open()` shows the locked state): the panel stays. Cleared
+    /// while the panel is open and idle: reset and close.
     private func sessionWasCleared() {
         viewModel.reset()
         queryText = ""
-        content = .checking
-        close()
+        if content == .unlocked { content = .checking }
+        if !isOpening { close() }
     }
 
     // MARK: Layout
@@ -154,16 +180,6 @@ final class PanelController {
     }
 
     // MARK: Vault state (interim)
-
-    private func refreshVaultState() async {
-        guard let session else { return }
-        do {
-            await apply(try await session.refreshState())
-        } catch {
-            content = .problem(PanelProblem(error))
-            applyFrame()
-        }
-    }
 
     private func apply(_ state: VaultState) async {
         switch state {
