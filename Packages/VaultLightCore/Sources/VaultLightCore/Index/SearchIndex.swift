@@ -130,8 +130,9 @@ public struct SearchIndex: Sendable {
 
         let boost = Dictionary(uniqueKeysWithValues: recentCopies.enumerated().map { ($1, $0) })
         let matches = records.indices.compactMap { position -> Match? in
-            guard let tier = records[position].tier(for: query) else { return nil }
-            return Match(tier: tier, boost: boost[records[position].entry.id] ?? Int.max, position: position)
+            let record = records[position]
+            guard let tier = record.tier(for: query) else { return nil }
+            return Match(tier: tier, boost: boost[record.entry.id] ?? Int.max, position: position)
         }
         return matches.sorted()
             .prefix(Self.maxResults)
@@ -139,9 +140,12 @@ public struct SearchIndex: Sendable {
     }
 
     private func emptyQueryResults() -> [SearchResult] {
-        let list =
-            recentCopies.isEmpty
-            ? records.filter(\.entry.favorite) : recentCopies.compactMap { positions[$0].map { records[$0] } }
+        let list: [Record]
+        if recentCopies.isEmpty {
+            list = records.filter(\.entry.favorite)
+        } else {
+            list = recentCopies.compactMap { id in positions[id].map { records[$0] } }
+        }
         return list.prefix(Self.maxResults).map { result($0, tier: nil) }
     }
 

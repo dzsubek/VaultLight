@@ -97,6 +97,12 @@ struct VaultEntryTests {
         #expect(entry.uris.contains("https://medium.com/@someone"))
         #expect(entry.uris.contains("https://plain.example/x"))
         #expect(entry.hosts == ["db.internal", "192.168.1.1", "medium.com", "plain.example"])
+        // "://" later in a scheme-less URI is not a scheme.
+        let later = VaultEntry(
+            id: "id", name: "x",
+            uris: ["admin:s3cret-pw@host/login?next=https://x.example", "admin:s3cret-pw@h2?r=a://b"])
+        #expect(later.uris == ["host/login?next=https://x.example", "h2?r=a://b"])
+        #expect(later.hosts == ["host", "h2"])
         // A URI with "@" that can't be parsed is dropped rather than kept with a possible password.
         #expect(VaultEntry(id: "id", name: "x", uris: ["bad uri:pw@ host"]).uris.isEmpty)
     }

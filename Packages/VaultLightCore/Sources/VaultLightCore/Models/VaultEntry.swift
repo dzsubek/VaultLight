@@ -39,22 +39,32 @@ public struct VaultEntry: Sendable, Equatable, Identifiable {
     /// written into a URI never stays in the index (spec 9.1). A URI with "@" that can't be parsed is dropped.
     static func withoutCredentials(_ uri: String) -> String? {
         guard uri.contains("@") else { return uri }
-        let hasScheme = uri.contains("://")
-        guard var components = URLComponents(string: hasScheme ? uri : "https://" + uri) else { return nil }
+        let hadScheme = hasScheme(uri)
+        guard var components = URLComponents(string: withScheme(uri)) else { return nil }
         components.user = nil
         components.password = nil
         guard var text = components.string else { return nil }
-        if !hasScheme { text.removeFirst("https://".count) }
+        if !hadScheme { text.removeFirst(defaultScheme.count) }
         return text
     }
 
-    /// The lowercased host of a URI. Bitwarden allows URIs without a scheme ("example.com"), so those are
-    /// read as https.
+    /// The lowercased host of a URI.
     static func host(of uri: String) -> String? {
-        let text = uri.trimmingCharacters(in: .whitespaces)
-        let components = URLComponents(string: text.contains("://") ? text : "https://" + text)
+        let components = URLComponents(string: withScheme(uri.trimmingCharacters(in: .whitespaces)))
         guard let host = components?.host, !host.isEmpty else { return nil }
         return host.lowercased()
+    }
+
+    /// Bitwarden allows URIs without a scheme ("example.com"), so those are read as https.
+    private static let defaultScheme = "https://"
+
+    private static func withScheme(_ uri: String) -> String {
+        hasScheme(uri) ? uri : defaultScheme + uri
+    }
+
+    /// A scheme counts only at the start (RFC 3986), not a "://" later in a query.
+    private static func hasScheme(_ uri: String) -> Bool {
+        uri.range(of: #"^[A-Za-z][A-Za-z0-9+.\-]*://"#, options: .regularExpression) != nil
     }
 }
 
@@ -92,7 +102,7 @@ extension VaultEntry {
                 folderId: try item.decodeIfPresent(String.self, forKey: .folderId),
                 organizationId: try item.decodeIfPresent(String.self, forKey: .organizationId),
                 favorite: try item.decodeIfPresent(Bool.self, forKey: .favorite) ?? false,
-                hasTOTP: !(totp?.isEmpty ?? true))
+                hasTOTP: !(totp ?? "").isEmpty)
         }
     }
 }
