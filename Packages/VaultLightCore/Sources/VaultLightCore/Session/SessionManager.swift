@@ -63,6 +63,8 @@ public actor SessionManager {
     private let clearedContinuation: AsyncStream<Void>.Continuation
 
     /// Yields each time an unlocked session is cleared, for whatever reason, so the panel can close (spec 4.3).
+    /// One listener only (the app's coordinator, which closes the panel and updates the menu): an `AsyncStream`
+    /// hands each element to a single iterator.
     public nonisolated let sessionCleared: AsyncStream<Void>
 
     /// `backgroundSyncInterval` is how often `bw sync` runs while unlocked; `nil` turns background sync off.
