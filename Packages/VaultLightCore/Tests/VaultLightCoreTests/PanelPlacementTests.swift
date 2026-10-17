@@ -23,17 +23,26 @@ struct PanelPlacementTests {
         #expect(frame.size == Self.panel)
     }
 
-    @Test func panelCenterSitsOnTheUpperThirdLine() {
+    @Test func panelTopEdgeStaysFixedInTheUpperThird() {
         let frame = PanelPlacement.frame(panelSize: Self.panel, screens: [Self.main], mouse: CGPoint(x: 10, y: 10))
-        // AppKit coordinates: y grows upwards, so the upper-third line is a third below the top edge.
-        #expect(frame.midY == (1000 - 1000.0 / 3).rounded())
+        // AppKit coordinates: y grows upwards, so the top edge sits a sixth of the screen below the top.
+        #expect(frame.maxY == (1000 - 1000.0 / 6).rounded())
+    }
+
+    @Test func differentPanelHeightsShareTheSameTopEdge() {
+        let short = PanelPlacement.frame(
+            panelSize: CGSize(width: 680, height: 120), screens: [Self.main], mouse: .zero)
+        let tall = PanelPlacement.frame(
+            panelSize: CGSize(width: 680, height: 520), screens: [Self.main], mouse: .zero)
+        #expect(short.maxY == tall.maxY)
+        #expect(short.minY > tall.minY)
     }
 
     @Test func placementUsesTheScreensOwnOrigin() {
         let frame = PanelPlacement.frame(
             panelSize: Self.panel, screens: [Self.main, Self.side], mouse: CGPoint(x: 2000, y: 500))
         #expect(frame.midX == Self.side.midX)
-        #expect(frame.midY == (1000 - 900.0 / 3).rounded())
+        #expect(frame.maxY == (1000 - 900.0 / 6).rounded())
     }
 
     @Test func panelIsClampedInsideASmallScreen() {
