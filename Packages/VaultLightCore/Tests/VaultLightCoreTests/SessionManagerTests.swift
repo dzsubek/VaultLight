@@ -24,7 +24,11 @@ final class TestClock: Sendable {
 }
 
 /// Spec 3.4 and 3.5, against the fake `bw` and an in-memory store.
-@Suite("SessionManager")
+///
+/// Serialized: each test starts several fake `bw` processes, and the `python3` shim behind the fake is slow to start
+/// on a loaded CI runner. Run in parallel, these tests pushed the timing tests in `ProcessRunnerTests` past their
+/// budgets (CI run 39069818259).
+@Suite("SessionManager", .serialized)
 struct SessionManagerTests {
     let fake: FakeBW
     let clock = TestClock()
@@ -62,9 +66,9 @@ struct SessionManagerTests {
         try commands().filter { $0 == command }.count
     }
 
-    /// Waits for a condition that another task makes true, failing after a minute.
+    /// Waits for a condition that another task makes true, failing after two minutes (`FakeBW.patientTimeouts`).
     func eventually(_ condition: () async throws -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(60)
+        let deadline = ContinuousClock.now + .seconds(120)
         while try await !condition() {
             guard ContinuousClock.now < deadline else {
                 Issue.record("condition not met in time")
