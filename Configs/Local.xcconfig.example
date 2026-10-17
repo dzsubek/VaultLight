@@ -1,0 +1,6 @@
+// Copied to Local.xcconfig by `make bootstrap`. Local.xcconfig is gitignored.
+//
+// Team ID: https://developer.apple.com/account → Membership details.
+
+VL_TEAM_ID = ABCDE12345
+VL_BUNDLE_ID = com.yourname.vaultlight

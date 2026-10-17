@@ -1,0 +1,22 @@
+# Generated
+VaultLight.xcodeproj/
+App/Info.plist
+App/VaultLight.entitlements
+.build/
+DerivedData/
+*.xcresult
+
+# Personal / secret
+Configs/Local.xcconfig
+.env
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# Local tool state
+.claude/
+
+# macOS
+.DS_Store
+__pycache__/

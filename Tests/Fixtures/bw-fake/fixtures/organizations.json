@@ -1,0 +1,10 @@
+[
+  {
+    "object": "organization",
+    "id": "1307bd24-d6e1-546b-a7a7-a04653164a1f",
+    "name": "Acme Ops",
+    "status": 2,
+    "type": 2,
+    "enabled": true
+  }
+]

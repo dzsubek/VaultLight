@@ -1,0 +1,6 @@
+// Shared build settings. Personal values live in Local.xcconfig (gitignored).
+
+VL_BUNDLE_ID = com.example.vaultlight
+VL_TEAM_ID =
+
+#include? "Local.xcconfig"

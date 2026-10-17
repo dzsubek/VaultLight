@@ -1,0 +1,443 @@
+[
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "52b2a4be-a885-5173-8845-7cb796a3aaa2",
+    "organizationId": null,
+    "folderId": "4ba68432-7f5f-5969-a603-89067894484c",
+    "type": 1,
+    "reprompt": 0,
+    "name": "GitHub",
+    "notes": null,
+    "favorite": true,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://github.com/login"
+        }
+      ],
+      "username": "tester",
+      "password": "fake-pw-github-7Qx!",
+      "totp": "otpauth://totp/GitHub:tester?secret=FAKEFAKEFAKEFAKE",
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "6be6b99e-9a1e-5d74-b42f-e611ca6b5cf1",
+    "organizationId": null,
+    "folderId": "4ba68432-7f5f-5969-a603-89067894484c",
+    "type": 1,
+    "reprompt": 0,
+    "name": "GitLab",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://gitlab.com"
+        }
+      ],
+      "username": "tester@example.com",
+      "password": "fake-pw-gitlab-2Lm#",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "0db9d1c6-11c7-5c73-a209-2c84d210d1db",
+    "organizationId": null,
+    "folderId": "4ba68432-7f5f-5969-a603-89067894484c",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Git server (self-hosted)",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://git.internal.example"
+        },
+        {
+          "match": null,
+          "uri": "ssh://git.internal.example:2222"
+        }
+      ],
+      "username": "admin",
+      "password": "fake-pw-gitea-9Kd$",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "e1e2debf-1feb-5a18-94f8-69ce2051cf6d",
+    "organizationId": null,
+    "folderId": "8a5da384-5303-5163-ac16-5168154c34ac",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Gmail",
+    "notes": null,
+    "favorite": true,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://accounts.google.com"
+        },
+        {
+          "match": null,
+          "uri": "https://mail.google.com"
+        }
+      ],
+      "username": "tester@example.com",
+      "password": "fake-pw-gmail-4Rt%",
+      "totp": "otpauth://totp/Google:tester?secret=FAKEFAKEFAKEFAKF",
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "ffc9b5b6-f5fa-5a12-92d8-fcdf3f43c676",
+    "organizationId": "1307bd24-d6e1-546b-a7a7-a04653164a1f",
+    "folderId": null,
+    "type": 1,
+    "reprompt": 0,
+    "name": "AWS Console",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://signin.aws.amazon.com"
+        }
+      ],
+      "username": "ops-admin",
+      "password": "fake-pw-aws-8Vb^",
+      "totp": "otpauth://totp/AWS?secret=FAKEFAKEFAKEFAKG",
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "d47eb67f-6f7e-5dad-9c8f-8b871d6718dc",
+    "organizationId": null,
+    "folderId": "4ba68432-7f5f-5969-a603-89067894484c",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Hetzner Cloud",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://console.hetzner.cloud"
+        }
+      ],
+      "username": "tester@example.com",
+      "password": "fake-pw-hetzner-1Zx&",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "d8eb4a84-8ae2-51f9-913f-da1e104ae953",
+    "organizationId": null,
+    "folderId": "8a5da384-5303-5163-ac16-5168154c34ac",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Árvíztűrő Bank",
+    "notes": "Branch: Budapest",
+    "favorite": false,
+    "fields": [
+      {
+        "name": "recovery-pin",
+        "value": "fake-field-secret-árvíztűrő-bank",
+        "type": 1
+      }
+    ],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://netbank.arvizturo.example.hu"
+        }
+      ],
+      "username": "tester",
+      "password": "fake-pw-bank-5Ny*",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "dc6c4389-0f1a-5d92-bd0c-50284df5dd79",
+    "organizationId": null,
+    "folderId": "4ba68432-7f5f-5969-a603-89067894484c",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Netlify",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://app.netlify.com"
+        }
+      ],
+      "username": "tester@example.com",
+      "password": "fake-pw-netlify-3Wq(",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "05ec865a-62ab-5df4-b35e-dc5fcef49094",
+    "organizationId": null,
+    "folderId": "8a5da384-5303-5163-ac16-5168154c34ac",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Router admin",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "http://192.168.1.1"
+        }
+      ],
+      "username": "admin",
+      "password": "fake-pw-router-6Ps)",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "9fbe53ed-5aff-5c24-a1b1-809a8139419a",
+    "organizationId": null,
+    "folderId": "4ba68432-7f5f-5969-a603-89067894484c",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Docker Hub",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://hub.docker.com"
+        }
+      ],
+      "username": "tester",
+      "password": "fake-pw-docker-0Hj_",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "bfb9cdec-dd16-5691-8cdf-61c0b970390f",
+    "organizationId": null,
+    "folderId": "8a5da384-5303-5163-ac16-5168154c34ac",
+    "type": 1,
+    "reprompt": 0,
+    "name": "Shared Wi-Fi note login",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "https://captive.example.net"
+        }
+      ],
+      "username": "guest",
+      "password": null,
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "id": "0cb06127-16b3-59c4-8c23-2faaad9a845d",
+    "organizationId": "1307bd24-d6e1-546b-a7a7-a04653164a1f",
+    "folderId": null,
+    "type": 1,
+    "reprompt": 0,
+    "name": "Postgres prod",
+    "notes": null,
+    "favorite": false,
+    "fields": [],
+    "login": {
+      "fido2Credentials": [],
+      "uris": [
+        {
+          "match": null,
+          "uri": "postgres://db.internal.example:5432"
+        }
+      ],
+      "username": "app_user",
+      "password": "fake-pw-postgres-2Ce+",
+      "totp": null,
+      "passwordRevisionDate": null
+    },
+    "collectionIds": []
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "organizationId": null,
+    "folderId": "8a5da384-5303-5163-ac16-5168154c34ac",
+    "reprompt": 0,
+    "favorite": false,
+    "fields": [],
+    "collectionIds": [],
+    "id": "8ada6594-3a00-5d74-b2f9-0701499a86a3",
+    "type": 2,
+    "name": "GitHub recovery codes",
+    "notes": "fake-recovery-code-1111\nfake-recovery-code-2222",
+    "secureNote": {
+      "type": 0
+    }
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "organizationId": null,
+    "folderId": "8a5da384-5303-5163-ac16-5168154c34ac",
+    "reprompt": 0,
+    "favorite": false,
+    "fields": [],
+    "collectionIds": [],
+    "id": "302b2ff9-1b0a-50fb-bae2-fbc46dac7440",
+    "type": 3,
+    "name": "Gift card",
+    "notes": null,
+    "card": {
+      "cardholderName": "Test Tester",
+      "brand": "Visa",
+      "number": "4111111111111111",
+      "expMonth": "12",
+      "expYear": "2030",
+      "code": "123"
+    }
+  },
+  {
+    "passwordHistory": null,
+    "revisionDate": "2026-09-30T10:00:00.000Z",
+    "creationDate": "2025-01-15T09:00:00.000Z",
+    "deletedDate": null,
+    "object": "item",
+    "organizationId": null,
+    "folderId": "8a5da384-5303-5163-ac16-5168154c34ac",
+    "reprompt": 0,
+    "favorite": false,
+    "fields": [],
+    "collectionIds": [],
+    "id": "9dad4897-c77b-5714-ae9d-8f108cec0ded",
+    "type": 4,
+    "name": "Test identity",
+    "notes": null,
+    "identity": {
+      "firstName": "Test",
+      "lastName": "Tester",
+      "email": "tester@example.com"
+    }
+  }
+]

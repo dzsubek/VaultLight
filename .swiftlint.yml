@@ -1,0 +1,50 @@
+included:
+  - App
+  - Packages/VaultLightCore/Sources
+  - Packages/VaultLightCore/Tests
+excluded:
+  - .build
+  - Packages/VaultLightCore/.build
+
+# swift-format owns layout; SwiftLint owns correctness and project rules.
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - line_length
+  - todo
+
+opt_in_rules:
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - fatal_error_message
+
+custom_rules:
+  no_shell:
+    name: "No shell"
+    regex: '"/bin/(ba|z)?sh"|"/usr/bin/env"'
+    message: "Never start a shell (spec §7.1)."
+    severity: error
+  no_print_logging:
+    name: "No print/NSLog"
+    regex: '\b(print|debugPrint|dump|NSLog)\('
+    excluded: ".*Tests.*"
+    message: "Use Logger with privacy: .private."
+    severity: error
+  process_only_in_cli_wrapper:
+    name: "Process only in the CLI wrapper"
+    regex: '\b(Process\(\)|posix_spawn|NSTask)'
+    excluded: "(Packages/VaultLightCore/Sources/VaultLightCore/CLI/|.*Tests.*)"
+    message: "Only the Core CLI wrapper may start processes."
+    severity: error
+  no_inherited_environment:
+    name: "No inherited environment"
+    regex: 'ProcessInfo\.processInfo\.environment'
+    excluded: ".*Tests.*"
+    message: "Build the child environment explicitly."
+    severity: error
+  no_general_pasteboard_in_tests:
+    name: "No general pasteboard in tests"
+    regex: 'NSPasteboard\.general'
+    included: ".*Tests.*"
+    message: "Tests must use a private named pasteboard or a fake."
+    severity: error
