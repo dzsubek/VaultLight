@@ -22,7 +22,7 @@ struct ProcessRunnerTests {
     @Test func capturesStatusAndBothStreams() async throws {
         let fake = try FakeBW()
         let success = try await run(fake, ["status", "--nointeraction"])
-        #expect(success.status == 0 && !success.timedOut && !success.terminatedBySignal)
+        #expect(success.status == 0 && !success.timedOut && !success.terminatedBySignal && success.outputComplete)
         #expect(String(bytes: success.stdout, encoding: .utf8)?.contains("\"unauthenticated\"") == true)
 
         let failed = try await run(fake, ["list", "items", "--nointeraction"])
@@ -43,7 +43,7 @@ struct ProcessRunnerTests {
         let output = try await ProcessRunner.run(
             URL(fileURLWithPath: "/bin/cat"), arguments: [file.path], environment: [:], timeout: .seconds(120),
             killGrace: .seconds(2))
-        #expect(output.status == 0)
+        #expect(output.status == 0 && output.outputComplete)
         #expect(output.stdout == content)
     }
 
@@ -86,16 +86,27 @@ struct ProcessRunnerTests {
         Issue.record("the fake never started within the timeout")
     }
 
-    /// A process the child leaves behind can keep the pipes open. Once the child has exited, the runner reads for
-    /// at most the kill grace period, so a call can't outlive its timeout and stall the queue.
-    @Test func returnsWhenTheChildExitsEvenIfAGrandchildHoldsThePipes() async throws {
+    /// A process the child leaves behind can keep the pipes open, with the call's secret in its environment.
+    /// Once the child has exited, the runner reads for at most the kill grace period, then kills the child's
+    /// process group and reports the output as incomplete. A call can't outlive its timeout or stall the queue.
+    @Test func killsLeftoversThatHoldThePipesAndFlagsTheOutput() async throws {
         let fake = try FakeBW()
         try fake.configure(["orphan_holds_pipes": 45])
         let start = ContinuousClock.now
         let output = try await run(fake, ["--version", "--nointeraction"], killGrace: .seconds(1))
-        #expect(output.status == 0 && !output.timedOut)
-        #expect(String(bytes: output.stdout, encoding: .utf8) == FakeBW.Defaults.version + "\n")
         #expect(ContinuousClock.now - start < .seconds(40))
+        #expect(output.status == 0 && !output.timedOut)
+        #expect(!output.outputComplete)
+
+        let pidText = try String(
+            contentsOf: fake.dataDirectory.appendingPathComponent("fake-orphan-pid"), encoding: .utf8)
+        let orphan = try #require(pid_t(pidText))
+        var alive = true
+        for _ in 0..<50 where alive {
+            alive = kill(orphan, 0) == 0
+            if alive { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        #expect(!alive, "the leftover process is still running")
     }
 
     @Test func fastCallIsNotTimedOut() async throws {

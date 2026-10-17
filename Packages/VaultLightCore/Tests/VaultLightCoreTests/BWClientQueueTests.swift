@@ -47,6 +47,15 @@ struct BWClientQueueTests {
 
     // MARK: Misc
 
+    /// Output cut off because a leftover process held the pipes is a failure, never a short value on the clipboard.
+    @Test func incompleteOutputFails() async throws {
+        let fake = try FakeBW()
+        try fake.configure(["orphan_holds_pipes": 45])
+        let client = fake.client(
+            timeouts: BWClient.Timeouts(standard: .seconds(120), sync: .seconds(120), killGrace: .seconds(1)))
+        await #expect(throws: BWError.unknown("bw output was incomplete")) { try await client.version() }
+    }
+
     @Test func missingBinaryIsNotInstalled() async throws {
         let fake = try FakeBW()
         let client = BWClient(

@@ -340,6 +340,8 @@ public actor BWClient {
         let error: BWError
         if output.timedOut {
             error = .timeout
+        } else if !output.outputComplete {
+            error = .unknown("bw output was incomplete")
         } else if output.status != 0 || output.terminatedBySignal {
             error = BWError.classify(
                 stderr: String(bytes: output.stderr, encoding: .utf8) ?? "", exitStatus: output.status,

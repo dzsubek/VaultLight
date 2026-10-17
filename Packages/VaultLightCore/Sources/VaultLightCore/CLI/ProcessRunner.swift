@@ -10,6 +10,9 @@ struct ProcessOutput: Sendable {
     let timedOut: Bool
     let stdout: Data
     let stderr: Data
+    /// Both pipes reached end-of-file. False when a leftover process held them open and reading was cut off, so
+    /// `stdout` may be partial.
+    let outputComplete: Bool
 }
 
 /// Starts one child process (spec 7.1): `executableURL` plus an argument array, never a shell; an explicit
@@ -58,13 +61,7 @@ enum ProcessRunner {
         }
 
         let pid = process.processIdentifier
-        let watchdog = Task<Bool, Never> {
-            do { try await Task.sleep(for: timeout) } catch { return false }
-            func signal(_ number: Int32) { exited.withLock { if !$0 { kill(pid, number) } } }
-            signal(SIGTERM)
-            if (try? await Task.sleep(for: killGrace)) != nil { signal(SIGKILL) }
-            return true
-        }
+        let watchdog = startWatchdog(pid: pid, exited: exited, timeout: timeout, killGrace: killGrace)
 
         async let stdout = stdoutReader.collect()
         async let stderr = stderrReader.collect()
@@ -72,51 +69,89 @@ enum ProcessRunner {
         for await finished in exits { exit = finished }
         watchdog.cancel()
 
-        // The child is gone, but something it started may still hold the pipes open. Read what is there for at
-        // most the grace period, then stop, so no call outlives its timeout and stalls the queue behind it.
-        let drainDeadline = Task {
-            guard (try? await Task.sleep(for: killGrace)) != nil else { return }
-            stdoutReader.stop()
-            stderrReader.stop()
-        }
-        let output = ProcessOutput(
-            status: exit.status, terminatedBySignal: exit.bySignal, timedOut: await watchdog.value,
-            stdout: await stdout, stderr: await stderr)
+        let drainDeadline = startDrainDeadline(pid: pid, readers: [stdoutReader, stderrReader], killGrace: killGrace)
+        let stdoutData = await stdout
+        let stderrData = await stderr
         drainDeadline.cancel()
-        return output
+        return ProcessOutput(
+            status: exit.status, terminatedBySignal: exit.bySignal, timedOut: await watchdog.value,
+            stdout: stdoutData, stderr: stderrData, outputComplete: stdoutReader.reachedEnd && stderrReader.reachedEnd)
     }
 
-    /// Reads a pipe without blocking a thread. The stream ends at EOF, or when `stop()` is called.
-    private struct PipeReader: Sendable {
-        private let handle: FileHandle
-        private let chunks: AsyncStream<Data>
-        private let continuation: AsyncStream<Data>.Continuation
-
-        init(_ handle: FileHandle) {
-            self.handle = handle
-            let (chunks, continuation) = AsyncStream.makeStream(of: Data.self)
-            self.chunks = chunks
-            self.continuation = continuation
-            handle.readabilityHandler = { readable in
-                let data = readable.availableData
-                if data.isEmpty {
-                    readable.readabilityHandler = nil
-                    continuation.finish()
-                } else {
-                    continuation.yield(data)
+    /// SIGTERM at the timeout, SIGKILL after the grace period, only while the child hasn't exited. Returns whether
+    /// it fired. The child leads its own process group (Process sets that up), so anything it started is signalled too.
+    private static func startWatchdog(
+        pid: pid_t, exited: OSAllocatedUnfairLock<Bool>, timeout: Duration, killGrace: Duration
+    ) -> Task<Bool, Never> {
+        Task {
+            do { try await Task.sleep(for: timeout) } catch { return false }
+            func signal(_ number: Int32) {
+                exited.withLock {
+                    guard !$0 else { return }
+                    kill(pid, number)
+                    killpg(pid, number)
                 }
             }
+            signal(SIGTERM)
+            if (try? await Task.sleep(for: killGrace)) != nil { signal(SIGKILL) }
+            return true
         }
+    }
 
-        func stop() {
-            handle.readabilityHandler = nil
-            continuation.finish()
+    /// Started once the child has exited. Something it started may still hold the pipes open, with the call's
+    /// secret in its environment. After the grace period, kill what is left of the child's process group (its ID
+    /// can't be reused while a member lives) and stop reading, so no call outlives its timeout or stalls the queue.
+    private static func startDrainDeadline(pid: pid_t, readers: [PipeReader], killGrace: Duration) -> Task<Void, Never>
+    {
+        Task {
+            guard (try? await Task.sleep(for: killGrace)) != nil else { return }
+            killpg(pid, SIGKILL)
+            for reader in readers { reader.stop() }
         }
+    }
+}
 
-        func collect() async -> Data {
-            var data = Data()
-            for await chunk in chunks { data.append(chunk) }
-            return data
+/// Reads a pipe without blocking a thread. The stream ends at EOF, or when `stop()` is called.
+private struct PipeReader: Sendable {
+    private enum State {
+        case reading, ended, stopped
+    }
+
+    private let handle: FileHandle
+    private let chunks: AsyncStream<Data>
+    private let continuation: AsyncStream<Data>.Continuation
+    private let state = OSAllocatedUnfairLock(initialState: State.reading)
+
+    init(_ handle: FileHandle) {
+        self.handle = handle
+        let (chunks, continuation) = AsyncStream.makeStream(of: Data.self)
+        self.chunks = chunks
+        self.continuation = continuation
+        let state = state
+        handle.readabilityHandler = { readable in
+            let data = readable.availableData
+            if data.isEmpty {
+                readable.readabilityHandler = nil
+                state.withLock { if $0 == .reading { $0 = .ended } }
+                continuation.finish()
+            } else {
+                continuation.yield(data)
+            }
         }
+    }
+
+    /// True only if EOF came before any `stop()`: a stop wins, because chunks after it are dropped.
+    var reachedEnd: Bool { state.withLock { $0 == .ended } }
+
+    func stop() {
+        state.withLock { if $0 == .reading { $0 = .stopped } }
+        handle.readabilityHandler = nil
+        continuation.finish()
+    }
+
+    func collect() async -> Data {
+        var data = Data()
+        for await chunk in chunks { data.append(chunk) }
+        return data
     }
 }
