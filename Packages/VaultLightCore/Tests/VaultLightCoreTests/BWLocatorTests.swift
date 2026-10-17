@@ -46,6 +46,10 @@ struct BWLocatorTests {
         #expect(BWLocator().candidates == BWLocator.pinnedPaths)
     }
 
+    @Test func defaultHomebrewBinsMatchThePinnedPaths() {
+        #expect(BWLocator.homebrewBinDirectories == ["/opt/homebrew/bin", "/usr/local/bin"])
+    }
+
     @Test func findsFirstExistingCandidateInOrder() throws {
         let scratch = try Scratch()
         let second = try scratch.makeBinary("bw-second")
@@ -67,10 +71,6 @@ struct BWLocatorTests {
 
         let bare = try BWLocator(candidates: [custom.path], homebrewBinDirectories: [missing]).locate()
         #expect(bare.searchPath == "/usr/bin:/bin")
-    }
-
-    @Test func defaultHomebrewBinsMatchThePinnedPaths() {
-        #expect(BWLocator.homebrewBinDirectories == ["/opt/homebrew/bin", "/usr/local/bin"])
     }
 
     /// Never resolves through PATH: with no candidate on disk, nothing is found, even though
@@ -128,8 +128,7 @@ struct BWLocatorTests {
 
     @Test func acceptsBinaryOwnedByRoot() throws {
         // /bin/ls is root-owned and not group/other-writable on every macOS install.
-        let executable = try BWLocator(candidates: ["/bin/ls"], homebrewBinDirectories: [], currentUserID: getuid() + 1)
-            .locate()
+        let executable = try Self.locator(candidates: ["/bin/ls"], currentUserID: getuid() + 1).locate()
         #expect(executable.url.path == "/bin/ls")
     }
 
@@ -151,10 +150,8 @@ struct BWLocatorTests {
     @Test(arguments: [0o777, 0o757])
     func refusesBinaryInFolderOthersCanWrite(permissions: Int) throws {
         let scratch = try Scratch()
-        let shared = try scratch.makeDirectory("shared")
+        let shared = try scratch.makeDirectory("shared", permissions: permissions)
         let binary = try scratch.makeBinary(in: shared)
-        try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: shared.path)
-        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shared.path) }
         #expect(throws: BWError.unsafeBinary) { try Self.locator(candidates: []).locate(configuredPath: binary.path) }
     }
 
@@ -188,9 +185,8 @@ struct BWLocatorTests {
     @Test func dotComponentsResolve() throws {
         let scratch = try Scratch()
         let binary = try scratch.makeBinary()
+        _ = try scratch.makeDirectory("sub")
         let path = scratch.directory.path + "/./sub/../bw"
-        try FileManager.default.createDirectory(
-            at: scratch.directory.appendingPathComponent("sub"), withIntermediateDirectories: true)
         #expect(Self.samePath(try Self.locator(candidates: []).locate(configuredPath: path).url, binary))
     }
 

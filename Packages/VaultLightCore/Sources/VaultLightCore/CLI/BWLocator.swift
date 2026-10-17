@@ -23,6 +23,7 @@ public struct BWLocator: Sendable {
 
     /// wheel and admin: their members can already become root.
     private static let trustedGroups: Set<gid_t> = [0, 80]
+    private static let maximumLinkHops = 32
 
     let candidates: [String]
     let homebrewBinDirectories: [String]
@@ -48,7 +49,7 @@ public struct BWLocator: Sendable {
         else { throw BWError.notInstalled }
 
         let resolved = try resolveChecked(entry)
-        guard let file = Self.ownership(of: resolved), file.type == .typeRegular,
+        guard let file = Self.fileInfo(of: resolved), file.type == .typeRegular,
             FileManager.default.isExecutableFile(atPath: resolved)
         else { throw BWError.notInstalled }
         guard file.owner == currentUserID || file.owner == 0, file.permissions & 0o022 == 0 else {
@@ -87,7 +88,7 @@ public struct BWLocator: Sendable {
                 continue
             }
             let candidate = (resolved as NSString).appendingPathComponent(name)
-            guard let info = Self.ownership(of: candidate) else { throw BWError.notInstalled }
+            guard let info = Self.fileInfo(of: candidate) else { throw BWError.notInstalled }
             if info.type == .typeSymbolicLink {
                 hops += 1
                 guard info.owner == currentUserID || info.owner == 0, hops <= Self.maximumLinkHops,
@@ -106,20 +107,18 @@ public struct BWLocator: Sendable {
         return resolved
     }
 
-    private static let maximumLinkHops = 32
-
     private static func components(of path: String) -> [String] {
         path.split(separator: "/").map(String.init)
     }
 
     private func checkTrustedFolder(_ path: String) throws {
-        guard let info = Self.ownership(of: path), info.type == .typeDirectory,
+        guard let info = Self.fileInfo(of: path), info.type == .typeDirectory,
             Self.isTrustedFolder(
                 owner: info.owner, group: info.group, permissions: info.permissions, currentUserID: currentUserID)
         else { throw BWError.unsafeBinary }
     }
 
-    private struct Ownership {
+    private struct FileInfo {
         let type: FileAttributeType?
         let owner: uid_t
         let group: gid_t
@@ -127,13 +126,13 @@ public struct BWLocator: Sendable {
     }
 
     /// Attributes of the path itself (a symlink is not followed; it reports `.typeSymbolicLink`).
-    private static func ownership(of path: String) -> Ownership? {
+    private static func fileInfo(of path: String) -> FileInfo? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
             let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value,
             let group = (attributes[.groupOwnerAccountID] as? NSNumber)?.uint32Value,
             let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue
         else { return nil }
-        return Ownership(
+        return FileInfo(
             type: attributes[.type] as? FileAttributeType, owner: owner, group: group, permissions: permissions)
     }
 }

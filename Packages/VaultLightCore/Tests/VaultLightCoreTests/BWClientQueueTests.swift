@@ -6,6 +6,11 @@ import Testing
 /// Spec 7.1 "One at a time" and "Timeouts", plus client setup.
 @Suite("BWClient queue and timeouts")
 struct BWClientQueueTests {
+    private static func permissions(of url: URL) throws -> Int? {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes[.posixPermissions] as? NSNumber)?.intValue
+    }
+
     // MARK: Serial queue
 
     @Test func callsRunOneAtATime() async throws {
@@ -74,8 +79,7 @@ struct BWClientQueueTests {
         let directory = fake.dataDirectory.appendingPathComponent("VaultLight/bw", isDirectory: true)
         let client = BWClient(locator: FakeBW.locator, dataDirectory: directory, home: fake.dataDirectory.path)
         _ = try await client.status()
-        let attributes = try FileManager.default.attributesOfItem(atPath: directory.path)
-        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
+        #expect(try Self.permissions(of: directory) == 0o700)
     }
 
     /// A data folder that already exists with wider permissions is tightened before use.
@@ -83,8 +87,7 @@ struct BWClientQueueTests {
         let fake = try FakeBW()
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.dataDirectory.path)
         _ = try await fake.client().status()
-        let attributes = try FileManager.default.attributesOfItem(atPath: fake.dataDirectory.path)
-        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
+        #expect(try Self.permissions(of: fake.dataDirectory) == 0o700)
     }
 
     @Test func defaultDataDirectoryIsVaultLightsOwn() {

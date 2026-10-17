@@ -18,6 +18,9 @@ final class FakeBW {
 
     static let executable: URL = repositoryRoot.appendingPathComponent("Tests/Fixtures/bw-fake/bw")
 
+    /// Finds only the fake; no Homebrew bin goes on the child PATH, so the fake's `python3` is /usr/bin's.
+    static let locator = BWLocator(candidates: [executable.path], homebrewBinDirectories: [])
+
     /// Keys macOS's `/usr/bin/python3` shim adds before the fake runs, even under `env -i`.
     /// The fake cannot see the environment it was started with, only the shim's, so these are
     /// subtracted from what it logs.
@@ -67,9 +70,6 @@ final class FakeBW {
     deinit {
         try? FileManager.default.removeItem(at: dataDirectory)
     }
-
-    /// Finds only the fake; no Homebrew bin goes on the child PATH, so the fake's `python3` is /usr/bin's.
-    static let locator = BWLocator(candidates: [executable.path], homebrewBinDirectories: [])
 
     /// A client wired to this fake's data directory. HOME also points there, away from the user's.
     func client(timeouts: BWClient.Timeouts = .default) -> BWClient {

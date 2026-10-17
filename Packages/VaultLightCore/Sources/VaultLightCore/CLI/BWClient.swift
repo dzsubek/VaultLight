@@ -246,7 +246,7 @@ public actor BWClient {
         searchPath: String, home: String, dataDirectory: URL, secrets: [String: String]
     ) -> [String: String] {
         let base = ["HOME": home, "PATH": searchPath, "BITWARDENCLI_APPDATA_DIR": dataDirectory.path]
-        return base.merging(secrets) { base, _ in base }
+        return base.merging(secrets) { baseValue, _ in baseValue }
     }
 
     private static func sessionEnvironment(_ session: SessionKey?) -> [String: String] {

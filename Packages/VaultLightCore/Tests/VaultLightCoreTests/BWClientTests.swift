@@ -13,6 +13,8 @@ struct BWClientTests {
     }
 
     private static let baseKeys: Set<String> = ["HOME", "PATH", "BITWARDENCLI_APPDATA_DIR"]
+    private static let sessionKeys = baseKeys.union(["BW_SESSION"])
+    private static let passwordKeys = baseKeys.union([BWClient.passwordVariable])
 
     private static let allSecrets = [
         FakeBW.Defaults.masterPassword, FakeBW.Defaults.sessionKey, FakeBW.Defaults.clientID,
@@ -65,7 +67,7 @@ struct BWClientTests {
         let fake = try FakeBW.unlocked()
         let status = try await fake.client().status(session: FakeBW.session)
         #expect(status.state == .unlocked)
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
+        #expect(try fake.lastEnvironmentKeys() == Self.sessionKeys)
         try expectNoSecretsInArguments(fake)
     }
 
@@ -83,7 +85,7 @@ struct BWClientTests {
         let fake = try FakeBW()
         let client = fake.client()
         try await client.loginPassword(email: FakeBW.Defaults.email, password: FakeBW.Defaults.masterPassword)
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union([BWClient.passwordVariable]))
+        #expect(try fake.lastEnvironmentKeys() == Self.passwordKeys)
         #expect(
             try fake.lastArguments() == [
                 "login", FakeBW.Defaults.email, "--passwordenv", BWClient.passwordVariable, "--nointeraction",
@@ -109,7 +111,7 @@ struct BWClientTests {
             email: email, password: password, twoFactor: BWTwoFactor(method: .authenticator, code: "123456"))
         let arguments = try fake.lastArguments()
         #expect(arguments.suffix(5) == ["--method", "0", "--code", "123456", "--nointeraction"])
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union([BWClient.passwordVariable]))
+        #expect(try fake.lastEnvironmentKeys() == Self.passwordKeys)
         try expectNoSecretsInArguments(fake)
     }
 
@@ -135,7 +137,7 @@ struct BWClientTests {
         await #expect(throws: BWError.invalidPassword) { try await client.unlock(password: "wrong") }
         let key = try await client.unlock(password: FakeBW.Defaults.masterPassword)
         #expect(key == FakeBW.session)
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union([BWClient.passwordVariable]))
+        #expect(try fake.lastEnvironmentKeys() == Self.passwordKeys)
         #expect(
             try fake.lastArguments() == [
                 "unlock", "--passwordenv", BWClient.passwordVariable, "--raw", "--nointeraction",
@@ -157,17 +159,17 @@ struct BWClientTests {
         let items: [Named] = try await client.listItems(session: FakeBW.session)
         #expect(items.count == 15)
         #expect(try fake.lastArguments() == ["list", "items", "--nointeraction"])
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
+        #expect(try fake.lastEnvironmentKeys() == Self.sessionKeys)
         try expectNoSecretsInArguments(fake)
 
         let folders: [Named] = try await client.listFolders(session: FakeBW.session)
         #expect(folders.count == 2)
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
+        #expect(try fake.lastEnvironmentKeys() == Self.sessionKeys)
         try expectNoSecretsInArguments(fake)
 
         let organizations: [Named] = try await client.listOrganizations(session: FakeBW.session)
         #expect(organizations.count == 1)
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
+        #expect(try fake.lastEnvironmentKeys() == Self.sessionKeys)
         try expectNoSecretsInArguments(fake)
     }
 
@@ -183,7 +185,7 @@ struct BWClientTests {
         let password = try await fake.client().getPassword(id: FakeBW.Item.github, session: FakeBW.session)
         #expect(password == FakeBW.Item.githubPassword)
         #expect(try fake.lastArguments() == ["get", "password", FakeBW.Item.github, "--raw", "--nointeraction"])
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
+        #expect(try fake.lastEnvironmentKeys() == Self.sessionKeys)
         try expectNoSecretsInArguments(fake)
     }
 
@@ -192,7 +194,7 @@ struct BWClientTests {
         let client = fake.client()
         #expect(try await client.getTOTP(id: FakeBW.Item.github, session: FakeBW.session) == FakeBW.Defaults.totpCode)
         #expect(try fake.lastArguments() == ["get", "totp", FakeBW.Item.github, "--raw", "--nointeraction"])
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
+        #expect(try fake.lastEnvironmentKeys() == Self.sessionKeys)
         try expectNoSecretsInArguments(fake)
         await #expect(throws: BWError.noValue) {
             try await client.getTOTP(id: FakeBW.Item.gitlab, session: FakeBW.session)
@@ -211,7 +213,7 @@ struct BWClientTests {
         let client = fake.client()
         try await client.sync(session: FakeBW.session)
         #expect(try fake.lastArguments() == ["sync", "--nointeraction"])
-        #expect(try fake.lastEnvironmentKeys() == Self.baseKeys.union(["BW_SESSION"]))
+        #expect(try fake.lastEnvironmentKeys() == Self.sessionKeys)
         try expectNoSecretsInArguments(fake)
         try fake.configure(["offline": true])
         await #expect(throws: BWError.network) { try await client.sync(session: FakeBW.session) }
