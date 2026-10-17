@@ -69,10 +69,15 @@ enum ProcessRunner {
         for await finished in exits { exit = finished }
         watchdog.cancel()
 
-        let drainDeadline = startDrainDeadline(pid: pid, readers: [stdoutReader, stderrReader], killGrace: killGrace)
+        let drainDeadline = startDrainDeadline(readers: [stdoutReader, stderrReader], killGrace: killGrace)
         let stdoutData = await stdout
         let stderrData = await stderr
         drainDeadline.cancel()
+        // Anything the child started still holds the call's secret in its environment, whether or not it kept the
+        // pipes: kill what is left of the group. The group ID can't be reused while a member lives; if it's empty,
+        // this fails with ESRCH. A process that left the group is out of reach, but if it holds the pipes the
+        // output is marked incomplete and the call fails.
+        killpg(pid, SIGKILL)
         return ProcessOutput(
             status: exit.status, terminatedBySignal: exit.bySignal, timedOut: await watchdog.value,
             stdout: stdoutData, stderr: stderrData, outputComplete: stdoutReader.reachedEnd && stderrReader.reachedEnd)
@@ -98,14 +103,11 @@ enum ProcessRunner {
         }
     }
 
-    /// Started once the child has exited. Something it started may still hold the pipes open, with the call's
-    /// secret in its environment. After the grace period, kill what is left of the child's process group (its ID
-    /// can't be reused while a member lives) and stop reading, so no call outlives its timeout or stalls the queue.
-    private static func startDrainDeadline(pid: pid_t, readers: [PipeReader], killGrace: Duration) -> Task<Void, Never>
-    {
+    /// Started once the child has exited. Something it started may still hold the pipes open; after the grace
+    /// period, stop reading, so no call outlives its timeout or stalls the queue. `run` then kills the leftovers.
+    private static func startDrainDeadline(readers: [PipeReader], killGrace: Duration) -> Task<Void, Never> {
         Task {
             guard (try? await Task.sleep(for: killGrace)) != nil else { return }
-            killpg(pid, SIGKILL)
             for reader in readers { reader.stop() }
         }
     }

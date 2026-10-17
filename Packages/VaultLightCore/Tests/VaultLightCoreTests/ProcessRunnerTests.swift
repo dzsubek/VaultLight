@@ -98,6 +98,19 @@ struct ProcessRunnerTests {
         #expect(output.status == 0 && !output.timedOut)
         #expect(!output.outputComplete)
 
+        try await expectOrphanGone(fake)
+    }
+
+    /// A leftover that let go of the pipes still holds the call's secret in its environment, so it is killed too.
+    @Test func killsLeftoversThatClosedThePipes() async throws {
+        let fake = try FakeBW()
+        try fake.configure(["orphan_detached": 45])
+        let output = try await run(fake, ["--version", "--nointeraction"], killGrace: .seconds(1))
+        #expect(output.status == 0 && output.outputComplete)
+        try await expectOrphanGone(fake)
+    }
+
+    private func expectOrphanGone(_ fake: FakeBW) async throws {
         let pidText = try String(
             contentsOf: fake.dataDirectory.appendingPathComponent("fake-orphan-pid"), encoding: .utf8)
         let orphan = try #require(pid_t(pidText))
