@@ -45,6 +45,8 @@ public enum PanelFooter: Sendable, Equatable {
     case noUsername
     case noURL
     case copyFailed
+    /// The clipboard write itself failed, so the clipboard was already wiped.
+    case clipboardWriteFailed
     case timedOut
     case locked
 
@@ -60,6 +62,7 @@ public enum PanelFooter: Sendable, Equatable {
         case .noUsername: "No username for this item"
         case .noURL: "No website for this item"
         case .copyFailed: "Copy failed · clipboard unchanged"
+        case .clipboardWriteFailed: "Copy failed"
         case .timedOut: "bw didn't respond within 15 s"
         case .locked: "Vault is locked"
         }
@@ -209,7 +212,13 @@ public final class PanelViewModel {
                 show(kind == .password ? .noPassword : .noTOTP)
                 return .stayOpen
             }
-            try system.copySecret(value)
+            do {
+                try system.copySecret(value)
+            } catch {
+                // The write began, so the pasteboard was already cleared: not "clipboard unchanged".
+                show(.clipboardWriteFailed)
+                return .stayOpen
+            }
         } catch {
             show(footer(for: error, missing: kind == .password ? .noPassword : .noTOTP))
             return .stayOpen
@@ -238,7 +247,7 @@ public final class PanelViewModel {
         do {
             try system.copyUsername(username)
         } catch {
-            show(.copyFailed)
+            show(.clipboardWriteFailed)
             return .stayOpen
         }
         await recordCopy(id: entry.id, startedIn: startedIn)

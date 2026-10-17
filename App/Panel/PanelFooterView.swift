@@ -13,7 +13,7 @@ struct PanelFooterView: View {
             status
             Spacer(minLength: 12)
             HStack(spacing: 14) {
-                hint(key: "↵", label: "Copy password", dimmed: !hasSelection, symbol: "return")
+                hint(key: "↵", label: "Copy password", dimmed: !hasSelection)
                 hint(key: "⌘U", label: "Username", dimmed: !hasSelection)
                 hint(key: "⌘T", label: "Code", dimmed: !hasSelection || !isTOTPAvailable)
                 hint(key: "⌘O", label: "Open", dimmed: !hasSelection)
@@ -45,25 +45,20 @@ struct PanelFooterView: View {
                 .foregroundStyle(Theme.teal)
         case .noPassword, .noTOTP, .noUsername, .noURL:
             Circle().fill(Theme.amber).frame(width: 8, height: 8)
-        case .copyFailed, .timedOut, .locked:
+        case .copyFailed, .clipboardWriteFailed, .timedOut, .locked:
             Circle().fill(Theme.red).frame(width: 8, height: 8)
         case .idle:
             EmptyView()
         }
     }
 
-    private func hint(key: String, label: String, dimmed: Bool, symbol: String? = nil) -> some View {
+    private func hint(key: String, label: String, dimmed: Bool) -> some View {
         HStack(spacing: 6) {
-            Group {
-                if let symbol {
-                    Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
-                } else {
-                    Text(key).font(.system(size: 12, weight: .medium))
-                }
-            }
-            .padding(.horizontal, 5)
-            .frame(minWidth: 22, minHeight: 20)
-            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.chipFill))
+            Text(key)
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 5)
+                .frame(minWidth: 22, minHeight: 20)
+                .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.chipFill))
             Text(label).font(.system(size: 13))
         }
         .foregroundStyle(.secondary)

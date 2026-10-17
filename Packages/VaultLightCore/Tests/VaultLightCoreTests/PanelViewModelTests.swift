@@ -183,13 +183,30 @@ struct PanelViewModelTests {
         #expect(await vault.copies.isEmpty)
     }
 
-    @Test func clipboardWriteFailureShowsCopyFailed() async {
+    @Test func clipboardWriteFailureShowsClipboardWriteFailed() async {
         system.failsToCopy = true
+        await typeGit()
+        #expect(await model.handle(.returnKey) == .stayOpen)
+        #expect(model.footer == .clipboardWriteFailed)
+        #expect(model.footer.message == "Copy failed")
+        #expect(await vault.copies.isEmpty)
+    }
+
+    @Test func usernameClipboardWriteFailureShowsClipboardWriteFailed() async {
+        system.failsToCopy = true
+        await typeGit()
+        #expect(await model.handle(.copyUsername) == .stayOpen)
+        #expect(model.footer == .clipboardWriteFailed)
+        #expect(await vault.copies.isEmpty)
+    }
+
+    @Test func failedFetchOfUnknownKindKeepsTheClipboardUnchangedMessage() async {
+        await vault.fail("github", with: .unknown("x"))
         await typeGit()
         #expect(await model.handle(.returnKey) == .stayOpen)
         #expect(model.footer == .copyFailed)
         #expect(model.footer.message == "Copy failed · clipboard unchanged")
-        #expect(await vault.copies.isEmpty)
+        #expect(system.secrets.isEmpty)
     }
 
     @Test func timeoutShowsTheTimeoutMessage() async {

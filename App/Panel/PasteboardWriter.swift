@@ -33,13 +33,16 @@ final class PasteboardWriter: PanelSystem {
     }
 
     private func write(_ value: String) throws {
+        // One item carries the value and both markers, so there is no moment where the secret sits on the
+        // pasteboard unmarked. Clipboard managers skip items that carry the markers.
+        let item = NSPasteboardItem()
+        guard item.setString(value, forType: .string),
+            item.setData(Data(), forType: Self.concealed),
+            item.setData(Data(), forType: Self.transient)
+        else { throw WriteError.failed }
         pasteboard.prepareForNewContents(with: .currentHostOnly)
-        // The markers go on first-class types of the same item: clipboard managers skip items that carry them.
-        guard pasteboard.setString(value, forType: .string),
-            pasteboard.setData(Data(), forType: Self.concealed),
-            pasteboard.setData(Data(), forType: Self.transient)
-        else {
-            // Never leave an unmarked secret behind.
+        guard pasteboard.writeObjects([item]) else {
+            // Never leave a half-written or unmarked secret behind.
             pasteboard.clearContents()
             throw WriteError.failed
         }
