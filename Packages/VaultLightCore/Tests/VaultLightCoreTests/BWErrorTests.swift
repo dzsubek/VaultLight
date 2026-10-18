@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import VaultLightCore
@@ -46,5 +47,23 @@ struct BWErrorTests {
 
     @Test func emptyStderrReportsTheExitStatus() {
         #expect(BWError.classify(stderr: "\n", exitStatus: 99, secrets: []) == .unknown("bw exited with status 99"))
+    }
+
+    /// Logs may show the kind of a failure in clear text, so it must never carry a payload.
+    @Test func diagnosticKindNamesTheCaseWithoutItsPayload() {
+        #expect(BWError.unknown("secret@example.test hunter2").diagnosticKind == "unknown")
+        #expect(BWError.tooOld(installed: "2024.1.0").diagnosticKind == "tooOld")
+        #expect(BWError.timeout.diagnosticKind == "timeout")
+        #expect(diagnosticKind(of: SessionStoreError.cancelled) == "SessionStoreError")
+        #expect(diagnosticKind(of: BWError.network) == "network")
+    }
+
+    @Test func decodingFailureNamesThePathButNoValues() throws {
+        struct Item: Decodable { let name: String }
+        let data = Data(#"[{"name": "Bank"}, {"name": 42, "note": "hunter2"}]"#.utf8)
+        let error = try #require(throws: DecodingError.self) { try JSONDecoder().decode([Item].self, from: data) }
+        let text = BWClient.decodingFailure(error)
+        #expect(text == "typeMismatch at [1].name")
+        #expect(!text.contains("hunter2") && !text.contains("42"))
     }
 }

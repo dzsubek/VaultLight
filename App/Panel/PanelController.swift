@@ -90,6 +90,7 @@ final class PanelController {
         do {
             await apply(try await session.refreshState())
         } catch {
+            Self.logger.error("Vault state failed: \(diagnosticKind(of: error), privacy: .public)")
             content = .problem(PanelProblem(error))
             applyFrame()
         }
@@ -202,6 +203,7 @@ final class PanelController {
         } catch SessionStoreError.cancelled, SessionStoreError.authenticationFailed {
             content = .touchID(canceled: true)
         } catch {
+            Self.logger.error("Vault state failed: \(diagnosticKind(of: error), privacy: .public)")
             content = .problem(PanelProblem(error))
             applyFrame()
         }
@@ -217,6 +219,7 @@ final class PanelController {
         } catch BWError.invalidPassword {
             content = .masterPassword(failed: true, busy: false)
         } catch {
+            Self.logger.error("Unlock failed: \(diagnosticKind(of: error), privacy: .public)")
             content = .problem(PanelProblem(error))
             applyFrame()
         }

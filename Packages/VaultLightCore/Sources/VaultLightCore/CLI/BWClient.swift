@@ -270,8 +270,40 @@ public actor BWClient {
         do {
             return try JSONDecoder().decode(type, from: data)
         } catch {
+            // Clear text: only the decoding failure's kind and coding path (this code's keys and array indices),
+            // never a value from the output.
+            logger.error(
+                "Decoding bw output failed: \(decodingFailure(error), privacy: .public), \(data.count, privacy: .public) bytes"
+            )
             throw BWError.unknown("Unexpected output from bw")
         }
+    }
+
+    /// `kind at path` for a `DecodingError`, with no values from the decoded data.
+    static func decodingFailure(_ error: any Error) -> String {
+        guard let error = error as? DecodingError else { return diagnosticKind(of: error) }
+        let (kind, context): (String, DecodingError.Context)
+        switch error {
+        case .typeMismatch(_, let ctx): (kind, context) = ("typeMismatch", ctx)
+        case .valueNotFound(_, let ctx): (kind, context) = ("valueNotFound", ctx)
+        case .keyNotFound(let key, let ctx): (kind, context) = ("keyNotFound(\(key.stringValue))", ctx)
+        case .dataCorrupted(let ctx): (kind, context) = ("dataCorrupted", ctx)
+        @unknown default: return "unknownDecodingError"
+        }
+        let path = context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }.joined(separator: ".")
+        return "\(kind) at \(path.isEmpty ? "top level" : path)"
+    }
+
+    /// The command verb for logs, from a fixed list so nothing else from `arguments` can reach clear text.
+    private static func verb(of arguments: [String]) -> String {
+        let verbs: Set = ["--version", "status", "config", "login", "unlock", "list", "get", "sync", "lock", "logout"]
+        guard let first = arguments.first, verbs.contains(first) else { return "other" }
+        if first == "list" || first == "get", arguments.count > 1,
+            ["items", "folders", "organizations", "password", "totp"].contains(arguments[1])
+        {
+            return "\(first) \(arguments[1])"
+        }
+        return first
     }
 
     private func list<T: Decodable & Sendable>(_ object: String, session: SessionKey) async throws -> [T] {
@@ -349,8 +381,14 @@ public actor BWClient {
         } else {
             return output
         }
+        // Clear text: the command verb comes from this file, and the rest are a case name, numbers and flags.
         Self.logger.error(
-            "bw \(arguments.first ?? "", privacy: .private) failed: \(String(describing: error), privacy: .private)")
+            """
+            bw \(Self.verb(of: arguments), privacy: .public) failed: \(error.diagnosticKind, privacy: .public) \
+            (exit \(output.status, privacy: .public), signal \(output.terminatedBySignal, privacy: .public), \
+            timed out \(output.timedOut, privacy: .public), output complete \(output.outputComplete, privacy: .public))
+            """)
+        Self.logger.error("bw failure detail: \(String(describing: error), privacy: .private)")
         throw error
     }
 }

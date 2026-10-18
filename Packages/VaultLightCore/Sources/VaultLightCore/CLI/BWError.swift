@@ -78,3 +78,33 @@ extension BWError {
         return String(redacted.prefix(maximumMessageLength))
     }
 }
+
+extension BWError {
+    /// The case name alone, never its payload, so logs can show it in clear text (`privacy: .public`) and a
+    /// failure can be diagnosed without exposing redacted `bw` output.
+    public var diagnosticKind: String {
+        switch self {
+        case .notInstalled: "notInstalled"
+        case .unsafeBinary: "unsafeBinary"
+        case .tooOld: "tooOld"
+        case .unauthenticated: "unauthenticated"
+        case .locked: "locked"
+        case .invalidPassword: "invalidPassword"
+        case .invalidAPIKey: "invalidAPIKey"
+        case .twoFactorRequired: "twoFactorRequired"
+        case .invalidTwoFactorCode: "invalidTwoFactorCode"
+        case .network: "network"
+        case .timeout: "timeout"
+        case .itemNotFound: "itemNotFound"
+        case .noValue: "noValue"
+        case .invalidArgument: "invalidArgument"
+        case .unknown: "unknown"
+        }
+    }
+}
+
+/// A clear-text label for any error: a `BWError`'s case name, otherwise the error's type name. Never a message
+/// or payload.
+public func diagnosticKind(of error: any Error) -> String {
+    (error as? BWError)?.diagnosticKind ?? String(describing: type(of: error))
+}
