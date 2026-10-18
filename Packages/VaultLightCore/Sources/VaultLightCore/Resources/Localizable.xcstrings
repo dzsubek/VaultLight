@@ -76,6 +76,15 @@
         }
       }
     },
+    "1 day" : {
+
+    },
+    "1 hour" : {
+
+    },
+    "1 minute" : {
+
+    },
     "Another user could change the bw binary or a folder on its way, so VaultLight won’t run it. Fix its ownership and permissions, or choose another location in Settings." : {
 
     },

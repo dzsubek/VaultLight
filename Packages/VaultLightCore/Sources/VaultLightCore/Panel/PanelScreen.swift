@@ -146,10 +146,21 @@ extension MasterPasswordReason {
 public enum RelativeTime {
     /// Whole units, rounded down, at least one minute.
     public static func duration(_ seconds: TimeInterval) -> String {
-        // Plural forms come from the String Catalog ("1 day", "6 days").
-        if seconds >= 86_400 { return String(localized: "\(Int(seconds / 86_400)) days", bundle: .module) }
-        if seconds >= 3_600 { return String(localized: "\(Int(seconds / 3_600)) hours", bundle: .module) }
-        return String(localized: "\(max(1, Int(seconds / 60))) minutes", bundle: .module)
+        // English singular and plural are separate keys, so the copy is right even where a toolchain doesn't apply
+        // the catalog's plural variations (CI run 39160724989); the "%lld …" keys still carry them for translations.
+        if seconds >= 86_400 {
+            let days = Int(seconds / 86_400)
+            return days == 1
+                ? String(localized: "1 day", bundle: .module) : String(localized: "\(days) days", bundle: .module)
+        }
+        if seconds >= 3_600 {
+            let hours = Int(seconds / 3_600)
+            return hours == 1
+                ? String(localized: "1 hour", bundle: .module) : String(localized: "\(hours) hours", bundle: .module)
+        }
+        let minutes = max(1, Int(seconds / 60))
+        return minutes == 1
+            ? String(localized: "1 minute", bundle: .module) : String(localized: "\(minutes) minutes", bundle: .module)
     }
 
     /// Abbreviated, for "synced 3 min ago" (design 13, 14).

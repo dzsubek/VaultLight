@@ -40,8 +40,9 @@ struct StringCatalogTests {
         }
     }
 
-    /// English plural forms come from the catalog's variations, not from code.
-    @Test func pluralsComeFromTheCatalog() {
+    /// English singular and plural are right whether or not the toolchain applies the catalog's plural variations
+    /// (CI run 39160724989 didn't).
+    @Test func durationsUseTheSingularForOne() {
         #expect(RelativeTime.duration(86_400) == "1 day")
         #expect(RelativeTime.duration(2 * 86_400) == "2 days")
         #expect(RelativeTime.duration(3_600) == "1 hour")
