@@ -2,7 +2,9 @@ import SwiftUI
 import VaultLightCore
 
 /// The footer (spec 5.4, design 03/04/05): the status on the left, key hints on the
-/// right. After a password or code copy, the right side shows the clipboard countdown instead (spec 6.2).
+/// right. While a copied secret is on the clipboard the footer shows its countdown (spec 6.2): on the right, in
+/// place of the hints, with the copy confirmation (design 04); on the left when the panel is reopened before the
+/// clear, so the hints stay.
 struct PanelFooterView: View {
     let footer: PanelFooter
     let hasSelection: Bool
@@ -41,6 +43,8 @@ struct PanelFooterView: View {
                     .lineLimit(1)
             }
             .accessibilityElement(children: .combine)
+        } else if let secondsUntilClear {
+            countdown(secondsUntilClear)
         }
     }
 
