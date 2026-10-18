@@ -68,28 +68,37 @@ enum MainMenu {
             submenu(
                 "VaultLight",
                 items: [
-                    NSMenuItem(title: "Hide VaultLight", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"),
+                    NSMenuItem(
+                        title: String(localized: "Hide VaultLight"), action: #selector(NSApplication.hide(_:)),
+                        keyEquivalent: "h"),
                     .separator(),
                     NSMenuItem(
-                        title: "Quit VaultLight", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"),
+                        title: String(localized: "Quit VaultLight"), action: #selector(NSApplication.terminate(_:)),
+                        keyEquivalent: "q"),
                 ]))
         main.addItem(
             submenu(
-                "Edit",
+                String(localized: "Edit"),
                 items: [
-                    NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"),
-                    NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"),
+                    NSMenuItem(title: String(localized: "Undo"), action: Selector(("undo:")), keyEquivalent: "z"),
+                    NSMenuItem(title: String(localized: "Redo"), action: Selector(("redo:")), keyEquivalent: "Z"),
                     .separator(),
-                    NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
+                    NSMenuItem(title: String(localized: "Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
                     NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
-                    NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
-                    NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
+                    NSMenuItem(
+                        title: String(localized: "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
+                    NSMenuItem(
+                        title: String(localized: "Select All"), action: #selector(NSText.selectAll(_:)),
+                        keyEquivalent: "a"),
                 ]))
         let window = submenu(
-            "Window",
+            String(localized: "Window"),
             items: [
-                NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"),
-                NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
+                NSMenuItem(
+                    title: String(localized: "Minimize"), action: #selector(NSWindow.performMiniaturize(_:)),
+                    keyEquivalent: "m"),
+                NSMenuItem(
+                    title: String(localized: "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
             ])
         main.addItem(window)
         NSApp.windowsMenu = window.submenu

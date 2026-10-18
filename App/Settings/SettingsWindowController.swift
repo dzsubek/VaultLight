@@ -60,9 +60,9 @@ final class SettingsWindowController: NSWindowController {
 extension SettingsTab {
     var title: String {
         switch self {
-        case .general: "General"
-        case .security: "Security"
-        case .vault: "Vault"
+        case .general: String(localized: "General")
+        case .security: String(localized: "Security")
+        case .vault: String(localized: "Vault")
         }
     }
 

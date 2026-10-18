@@ -11,7 +11,7 @@ SOURCES := App Packages/VaultLightCore/Sources Packages/VaultLightCore/Tests
 SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null || echo "xcrun swift-format")
 BEAUTIFY     := $(shell command -v xcbeautify >/dev/null 2>&1 && echo "| xcbeautify --quiet" || echo "")
 
-.PHONY: help bootstrap gen test-core test-fake-bw perf build build-signed run lint format check clean
+.PHONY: help bootstrap gen test-core test-fake-bw perf build build-signed run lint format strings check-strings check clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n",$$1,$$2}'
@@ -51,6 +51,30 @@ build-signed: gen ## Build the app (Debug, signed with your team from Configs/Lo
 run: build-signed ## Build signed and launch the app
 	open "$(DERIVED)/Build/Products/Debug/VaultLight.app"
 
+# The compiler writes the localizable strings it finds (SWIFT_EMIT_LOC_STRINGS) next to each target's objects.
+INTERMEDIATES := $(DERIVED)/Build/Intermediates.noindex
+APP_STRINGS   := App/Localizable.xcstrings
+CORE_STRINGS  := $(CORE)/Sources/VaultLightCore/Resources/Localizable.xcstrings
+
+strings: build ## Add new strings to the String Catalogs (run after changing UI copy)
+	@$(MAKE) --no-print-directory sync-strings APP_CATALOG=$(APP_STRINGS) CORE_CATALOG=$(CORE_STRINGS)
+
+check-strings: ## Fail when a String Catalog is missing strings from the last build
+	@# sync matches a catalog to its table by file name, so the copies keep the name Localizable.xcstrings.
+	@tmp=$$(mktemp -d); mkdir "$$tmp/app" "$$tmp/core"; \
+	cp $(APP_STRINGS) "$$tmp/app/"; cp $(CORE_STRINGS) "$$tmp/core/"; \
+	$(MAKE) --no-print-directory sync-strings \
+		APP_CATALOG="$$tmp/app/Localizable.xcstrings" CORE_CATALOG="$$tmp/core/Localizable.xcstrings" >/dev/null; \
+	if ! cmp -s "$$tmp/app/Localizable.xcstrings" $(APP_STRINGS) \
+		|| ! cmp -s "$$tmp/core/Localizable.xcstrings" $(CORE_STRINGS); then \
+		echo "String Catalogs are out of date: run make strings and commit them." >&2; rm -rf "$$tmp"; exit 1; \
+	fi; rm -rf "$$tmp"; echo "String Catalogs up to date"
+
+.PHONY: sync-strings
+sync-strings:
+	xcrun xcstringstool sync $(APP_CATALOG) --stringsdata $$(find $(INTERMEDIATES)/VaultLight.build -name '*.stringsdata')
+	xcrun xcstringstool sync $(CORE_CATALOG) --stringsdata $$(find $(INTERMEDIATES)/VaultLightCore.build -name '*.stringsdata')
+
 lint: ## SwiftLint + swift-format lint
 	swiftlint lint --strict --quiet
 	$(SWIFT_FORMAT) lint --strict --recursive --configuration .swift-format $(SOURCES)
@@ -58,7 +82,7 @@ lint: ## SwiftLint + swift-format lint
 format: ## Format Swift sources in place
 	$(SWIFT_FORMAT) format --in-place --recursive --configuration .swift-format $(SOURCES)
 
-check: lint test-fake-bw test-core build ## Everything CI runs
+check: lint test-fake-bw test-core build check-strings ## Everything CI runs
 
 clean: ## Remove build products and the generated project
 	rm -rf .build $(CORE)/.build $(PROJECT)

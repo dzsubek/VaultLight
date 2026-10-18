@@ -8,7 +8,7 @@ extension SearchResult {
         if let username = entry.username, !username.isEmpty { parts.append(username) }
         if let host = entry.primaryHost { parts.append(host) }
         if let place = organizationName ?? folderName { parts.append(place) }
-        if entry.hasTOTP { parts.append("has one-time code") }
+        if entry.hasTOTP { parts.append(String(localized: "has one-time code", bundle: .module)) }
         return parts.joined(separator: ", ")
     }
 }
@@ -19,6 +19,6 @@ extension PanelViewModel {
     public var spokenSelection: String? {
         if let selected { return selected.spokenDescription }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : "No matches for “\(trimmed)”"
+        return trimmed.isEmpty ? nil : String(localized: "No matches for “\(trimmed)”", bundle: .module)
     }
 }

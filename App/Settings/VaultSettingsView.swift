@@ -25,12 +25,14 @@ struct VaultSettingsView: View {
 
     var body: some View {
         SettingsPage {
-            SettingsSection(title: "Account", footer: "Changing the server signs you out.") {
+            SettingsSection(
+                title: String(localized: "Account"), footer: String(localized: "Changing the server signs you out.")
+            ) {
                 SettingsRow(title: accountTitle, subtitle: accountSubtitle) {
                     Button("Sign Out…") { confirmingSignOut = true }
                         .disabled(!isSignedIn)
                 }
-                SettingsRow(title: "Server", divider: true) {
+                SettingsRow(title: String(localized: "Server"), divider: true) {
                     Picker("", selection: serverSelection) {
                         Text("Bitwarden US").tag(ServerOption.bitwardenUS)
                         Text("Bitwarden EU").tag(ServerOption.bitwardenEU)
@@ -53,13 +55,13 @@ struct VaultSettingsView: View {
                     }
                 }
             }
-            SettingsSection(title: "Sync") {
-                SettingsRow(title: "Background sync") {
+            SettingsSection(title: String(localized: "Sync")) {
+                SettingsRow(title: String(localized: "Background sync")) {
                     OptionPicker(
                         selection: model.settingBinding(\.backgroundSync),
                         options: AppSettings.SyncInterval.allCases, label: \.label)
                 }
-                SettingsRow(title: "Last synced", divider: true) {
+                SettingsRow(title: String(localized: "Last synced"), divider: true) {
                     HStack(spacing: 10) {
                         Text(lastSynced).font(.system(size: 13)).foregroundStyle(.secondary)
                         Button("Sync Now") { Task { await model.syncNow() } }
@@ -68,11 +70,14 @@ struct VaultSettingsView: View {
                 }
             }
             SettingsSection(
-                title: "Bitwarden CLI",
-                footer: refusedPath.map { "\($0.title). \($0.detail(path: nil))" }
-                    ?? "VaultLight never looks up bw through PATH, and refuses a binary that other users can modify."
+                title: String(localized: "Bitwarden CLI"),
+                footer: refusedPath.map { String(localized: "\($0.title). \($0.detail(path: nil))") }
+                    ?? String(
+                        localized:
+                            "VaultLight never looks up bw through PATH, and refuses a binary that other users can modify."
+                    )
             ) {
-                SettingsRow(title: "Location", subtitle: model.settings.settings.bwPath) {
+                SettingsRow(title: String(localized: "Location"), subtitle: model.settings.settings.bwPath) {
                     Picker("", selection: locationSelection) {
                         Text("Auto-detect").tag(Location.automatic)
                         Text("Custom…").tag(Location.custom)
@@ -80,7 +85,7 @@ struct VaultSettingsView: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-                SettingsRow(title: "In use", divider: true) {
+                SettingsRow(title: String(localized: "In use"), divider: true) {
                     Text(model.bwInUse.map { "\($0.path) · \($0.version)" } ?? "Not found")
                         .font(.system(size: 12.5, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -94,8 +99,10 @@ struct VaultSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
-                "VaultLight deletes the stored session, clears the unlocked vault and signs out of the Bitwarden CLI. "
-                    + "Your settings are kept.")
+                """
+                VaultLight deletes the stored session, clears the unlocked vault and signs out of the Bitwarden \
+                CLI. Your settings are kept.
+                """)
         }
         .alert("Sign out didn’t finish", isPresented: $signOutFailed) {
             Button("Retry Sign Out", action: signOut)
@@ -110,9 +117,19 @@ struct VaultSettingsView: View {
             Button("Sign Out and Change", role: .destructive, action: changeServer)
             Button("Cancel", role: .cancel) { pendingServer = nil }
         } message: {
-            Text(
-                "VaultLight signs you out first, because the Bitwarden CLI can only change servers while signed out. "
-                    + "Then sign in on \(pendingServer?.displayName ?? "the new server").")
+            if let server = pendingServer?.displayName {
+                Text(
+                    """
+                    VaultLight signs you out first, because the Bitwarden CLI can only change servers while signed \
+                    out. Then sign in on \(server).
+                    """)
+            } else {
+                Text(
+                    """
+                    VaultLight signs you out first, because the Bitwarden CLI can only change servers while signed \
+                    out. Then sign in on the new server.
+                    """)
+            }
         }
         .alert("The server wasn’t changed", isPresented: $serverChangeFailed) {
             Button("OK", role: .cancel) {}
@@ -129,14 +146,15 @@ struct VaultSettingsView: View {
     }
 
     private var accountTitle: String {
-        model.summary.email ?? (isSignedIn ? "Signed in" : "Not signed in")
+        model.summary.email ?? (isSignedIn ? String(localized: "Signed in") : String(localized: "Not signed in"))
     }
 
     private var accountSubtitle: String {
         if model.summary.isUnlocked {
-            return model.summary.loginCount.map { "Signed in · \($0) logins" } ?? "Signed in"
+            return model.summary.loginCount.map { String(localized: "Signed in · \($0) logins") }
+                ?? String(localized: "Signed in")
         }
-        return isSignedIn ? "Signed in · locked" : "Open VaultLight to sign in"
+        return isSignedIn ? String(localized: "Signed in · locked") : String(localized: "Open VaultLight to sign in")
     }
 
     private func signOut() {
@@ -153,7 +171,7 @@ struct VaultSettingsView: View {
 
     private var selfHostedLabel: String {
         if case .selfHosted = model.settings.settings.server { return model.settings.settings.server.displayName }
-        return "Self-hosted…"
+        return String(localized: "Self-hosted…")
     }
 
     private var serverSelection: Binding<ServerOption> {
@@ -208,13 +226,13 @@ struct VaultSettingsView: View {
 
     private var lastSynced: String {
         let status = model.syncStatus
-        if status.isSyncing { return "Syncing…" }
+        if status.isSyncing { return String(localized: "Syncing…") }
         let last =
             status.lastSyncedAt.map { RelativeTime.ago(Date().timeIntervalSince($0)) }
-            ?? (model.summary.isUnlocked ? "Never" : "—")
+            ?? (model.summary.isUnlocked ? String(localized: "Never") : "—")
         switch status.failure {
-        case .offline: return "\(last) · offline"
-        case .failed: return "\(last) · last sync failed"
+        case .offline: return String(localized: "\(last) · offline")
+        case .failed: return String(localized: "\(last) · last sync failed")
         case nil: return last
         }
     }
@@ -240,7 +258,7 @@ struct VaultSettingsView: View {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.treatsFilePackagesAsDirectories = true
-        panel.message = "Choose the Bitwarden CLI (bw)"
+        panel.message = String(localized: "Choose the Bitwarden CLI (bw)")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task { refusedPath = await model.setBWPath(url.path) }
     }

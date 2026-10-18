@@ -48,14 +48,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if model.shortcutUnavailable {
             items.append(
                 header(
-                    title: "Shortcut unavailable",
-                    detail: "\(shortcut.displayString) is already used by another app", warning: true))
-            items.append(item("Choose Another Shortcut…", #selector(chooseShortcut), target: target))
+                    title: String(localized: "Shortcut unavailable"),
+                    detail: String(localized: "\(shortcut.displayString) is already used by another app"), warning: true
+                ))
+            items.append(item(String(localized: "Choose Another Shortcut…"), #selector(chooseShortcut), target: target))
         } else {
             items.append(header(title: status.title, detail: status.detail, warning: false))
         }
         items.append(.separator())
-        let open = item("Open VaultLight", #selector(openPanel), target: target)
+        let open = item(String(localized: "Open VaultLight"), #selector(openPanel), target: target)
         if !model.shortcutUnavailable {
             open.keyEquivalent = shortcut.key == "Space" ? " " : shortcut.key.lowercased()
             open.keyEquivalentModifierMask = shortcut.appKitModifiers
@@ -65,18 +66,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         items.append(
             item("Sync Now", #selector(syncNow), target: target, enabled: status.canSync && !model.syncStatus.isSyncing)
         )
-        items.append(item("Lock Now", #selector(lockNow), target: target, enabled: status.canLock))
+        items.append(item(String(localized: "Lock Now"), #selector(lockNow), target: target, enabled: status.canLock))
         items.append(
             item(
-                "Lock and Forget…", #selector(lockAndForget), target: target,
+                String(localized: "Lock and Forget…"), #selector(lockAndForget), target: target,
                 enabled: model.lastState != .needsOnboarding))
         items.append(.separator())
-        let settings = item("Settings…", #selector(openSettings), target: target)
+        let settings = item(String(localized: "Settings…"), #selector(openSettings), target: target)
         settings.keyEquivalent = ","
         items.append(settings)
-        items.append(item("About VaultLight", #selector(openAbout), target: target))
+        items.append(item(String(localized: "About VaultLight"), #selector(openAbout), target: target))
         items.append(.separator())
-        let quit = item("Quit VaultLight", #selector(quit), target: target)
+        let quit = item(String(localized: "Quit VaultLight"), #selector(quit), target: target)
         quit.keyEquivalent = "q"
         items.append(quit)
         return items
@@ -107,10 +108,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func updateIcon() {
         guard let button = statusItem.button else { return }
-        let description = model.shortcutUnavailable ? "VaultLight, shortcut unavailable" : "VaultLight"
+        let description =
+            model.shortcutUnavailable ? String(localized: "VaultLight, shortcut unavailable") : "VaultLight"
         if let seconds = model.clipboard.secondsUntilClear {
             button.image = MenuBarIcon.countdown(symbolName: Self.symbolName, seconds: seconds)
-            button.setAccessibilityLabel("\(description), clipboard clears in \(seconds) seconds")
+            button.setAccessibilityLabel(String(localized: "\(description), clipboard clears in \(seconds) seconds"))
         } else if model.shortcutUnavailable {
             button.image = MenuBarIcon.badged(symbolName: Self.symbolName, description: description)
             button.setAccessibilityLabel(description)
@@ -155,10 +157,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func lockAndForget() {
         NSApp.activate()
         let alert = NSAlert()
-        alert.messageText = "Lock and forget?"
+        alert.messageText = String(localized: "Lock and forget?")
         alert.informativeText =
-            "VaultLight locks the vault and deletes the stored session. Your master password is needed next time."
-        alert.addButton(withTitle: "Lock and Forget")
+            String(
+                localized:
+                    "VaultLight locks the vault and deletes the stored session. Your master password is needed next time."
+            )
+        alert.addButton(withTitle: String(localized: "Lock and Forget"))
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         Task { await model.lockAndForget() }

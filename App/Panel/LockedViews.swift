@@ -62,7 +62,7 @@ private struct TouchIDView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PanelTitle(symbol: "lock", title: "Vault locked")
+            PanelTitle(symbol: "lock", title: String(localized: "Vault locked"))
             Divider()
             VStack(spacing: 10) {
                 Image(systemName: "touchid")
@@ -87,7 +87,7 @@ private struct TouchIDView: View {
             .padding(.vertical, 52)
             .accessibilityElement(children: .combine)
             Divider()
-            FooterBar(status: "Locked") { KeyHint(key: "↵", label: canceled ? "Try again" : nil) }
+            FooterBar(status: String(localized: "Locked")) { KeyHint(key: "↵", label: canceled ? "Try again" : nil) }
         }
     }
 
@@ -95,7 +95,8 @@ private struct TouchIDView: View {
         var parts: [String] = []
         if let email = summary.email { parts.append(email) }
         if let expiry = summary.storedSessionExpiresAt, expiry > Date() {
-            parts.append("stored session expires in \(RelativeTime.duration(expiry.timeIntervalSinceNow))")
+            parts.append(
+                String(localized: "stored session expires in \(RelativeTime.duration(expiry.timeIntervalSinceNow))"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -132,7 +133,7 @@ private struct MasterPasswordView: View {
                     .disabled(busy)
                     .accessibilityLabel("Master password")
                     .onSubmit(submit)
-                Button(action: submit) { ReturnLabel(title: "Unlock", busy: busy) }
+                Button(action: submit) { ReturnLabel(title: String(localized: "Unlock"), busy: busy) }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(busy)
             }
@@ -143,17 +144,20 @@ private struct MasterPasswordView: View {
             Rectangle()
                 .fill(attempts > 0 ? Theme.red : Color.primary.opacity(0.1))
                 .frame(height: 1)
-            Text(attempts > 0 ? "Wrong master password. Try again." : MasterPasswordReason.prompt(email: email))
-                .font(.system(size: 14))
-                .foregroundStyle(attempts > 0 ? Theme.red : .secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, bodyLeading)
-                .padding(.trailing, 20)
-                .padding(.vertical, 18)
+            Text(
+                attempts > 0
+                    ? String(localized: "Wrong master password. Try again.") : MasterPasswordReason.prompt(email: email)
+            )
+            .font(.system(size: 14))
+            .foregroundStyle(attempts > 0 ? Theme.red : .secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, bodyLeading)
+            .padding(.trailing, 20)
+            .padding(.vertical, 18)
             Divider()
             FooterBar(status: reason.footer) {
-                KeyHint(key: "↵", label: "Unlock")
-                KeyHint(key: "esc", label: "Close")
+                KeyHint(key: "↵", label: String(localized: "Unlock"))
+                KeyHint(key: "esc", label: String(localized: "Close"))
             }
         }
         .onAppear { focused = true }
@@ -189,7 +193,9 @@ private struct SetupProblemView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PanelTitle(symbol: "exclamationmark.triangle", title: "VaultLight isn’t ready", tint: Theme.amber)
+            PanelTitle(
+                symbol: "exclamationmark.triangle", title: String(localized: "VaultLight isn’t ready"),
+                tint: Theme.amber)
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 Text(problem.title)
@@ -215,10 +221,10 @@ private struct SetupProblemView: View {
             .padding(.top, 20)
             .padding(.bottom, 22)
             Divider()
-            FooterBar(status: "Setup needed", dot: Theme.amber) {
+            FooterBar(status: String(localized: "Setup needed"), dot: Theme.amber) {
                 if problem.command != nil { KeyHint(key: "⌘C", label: "Copy command") }
-                KeyHint(key: "⌘,", label: "Settings")
-                KeyHint(key: "esc", label: "Close")
+                KeyHint(key: "⌘,", label: String(localized: "Settings"))
+                KeyHint(key: "esc", label: String(localized: "Close"))
             }
         }
     }
@@ -265,9 +271,9 @@ private struct FailureView: View {
             .padding(.vertical, 20)
             .accessibilityElement(children: .combine)
             Divider()
-            FooterBar(status: "Error", dot: Theme.red) {
+            FooterBar(status: String(localized: "Error"), dot: Theme.red) {
                 KeyHint(key: "↵", label: "Try again")
-                KeyHint(key: "esc", label: "Close")
+                KeyHint(key: "esc", label: String(localized: "Close"))
             }
         }
     }

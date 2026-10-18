@@ -9,23 +9,24 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsPage {
-            SettingsSection(title: "Shortcut") {
+            SettingsSection(title: String(localized: "Shortcut")) {
                 ShortcutRow(model: model)
             }
             SettingsSection(
-                title: "Clipboard",
-                footer: "Cleared only if the clipboard still holds the copied value. Usernames are not cleared."
+                title: String(localized: "Clipboard"),
+                footer: String(
+                    localized: "Cleared only if the clipboard still holds the copied value. Usernames are not cleared.")
             ) {
-                SettingsRow(title: "Clear copied secrets after") {
+                SettingsRow(title: String(localized: "Clear copied secrets after")) {
                     OptionPicker(
                         selection: model.settingBinding(\.clipboardTimeout),
                         options: AppSettings.ClipboardTimeout.allCases, label: \.label)
                 }
             }
-            SettingsSection(title: "Startup") {
-                SettingsRow(title: "Launch at login") {
+            SettingsSection(title: String(localized: "Startup")) {
+                SettingsRow(title: String(localized: "Launch at login")) {
                     SettingsSwitch(
-                        title: "Launch at login",
+                        title: String(localized: "Launch at login"),
                         isOn: Binding(
                             get: { model.settings.settings.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
                 }
@@ -41,28 +42,31 @@ struct SecuritySettingsView: View {
 
     var body: some View {
         SettingsPage {
-            SettingsSection(title: "Touch ID") {
+            SettingsSection(title: String(localized: "Touch ID")) {
                 SettingsRow(
-                    title: "Stored session lasts", subtitle: "After this, the master password is required again."
+                    title: String(localized: "Stored session lasts"),
+                    subtitle: String(localized: "After this, the master password is required again.")
                 ) {
                     OptionPicker(
                         selection: model.settingBinding(\.session.storedMaximumAge),
                         options: SessionSettings.StoredMaximumAge.allCases, label: \.label)
                 }
-                SettingsRow(title: "Require master password after restart", divider: true) {
+                SettingsRow(title: String(localized: "Require master password after restart"), divider: true) {
                     SettingsSwitch(
-                        title: "Require master password after restart",
+                        title: String(localized: "Require master password after restart"),
                         isOn: model.settingBinding(\.session.requireMasterPasswordAfterRestart))
                 }
             }
-            SettingsSection(title: "Auto-lock", footer: "VaultLight also locks on sleep, screen lock and user switch.")
-            {
-                SettingsRow(title: "Stay unlocked after Touch ID") {
+            SettingsSection(
+                title: String(localized: "Auto-lock"),
+                footer: String(localized: "VaultLight also locks on sleep, screen lock and user switch.")
+            ) {
+                SettingsRow(title: String(localized: "Stay unlocked after Touch ID")) {
                     OptionPicker(
                         selection: model.settingBinding(\.session.inMemoryLifetime),
                         options: SessionSettings.InMemoryLifetime.allCases, label: \.label)
                 }
-                SettingsRow(title: "Lock after idle", divider: true) {
+                SettingsRow(title: String(localized: "Lock after idle"), divider: true) {
                     OptionPicker(
                         selection: model.settingBinding(\.session.idleLock),
                         options: SessionSettings.IdleLock.allCases, label: \.label)
@@ -123,7 +127,7 @@ private struct ShortcutRow: View {
     @State private var monitor: Any?
 
     var body: some View {
-        SettingsRow(title: "Open VaultLight", subtitle: subtitle, subtitleIsError: isError) {
+        SettingsRow(title: String(localized: "Open VaultLight"), subtitle: subtitle, subtitleIsError: isError) {
             recorder
         }
         .onAppear {
@@ -139,15 +143,16 @@ private struct ShortcutRow: View {
 
     private var subtitle: String {
         if let refused {
-            return "\(refused.displayString) is already used by another app. Choose a different shortcut."
+            return String(
+                localized: "\(refused.displayString) is already used by another app. Choose a different shortcut.")
         }
-        if needsModifier { return "Use ⌘, ⌥ or ⌃ with the key." }
-        return "Works in every app, including full-screen ones."
+        if needsModifier { return String(localized: "Use ⌘, ⌥ or ⌃ with the key.") }
+        return String(localized: "Works in every app, including full-screen ones.")
     }
 
     private var recorder: some View {
         HStack(spacing: 6) {
-            Text(recording ? "Press a shortcut…" : model.settings.settings.hotKey.displayString)
+            Text(recording ? String(localized: "Press a shortcut…") : model.settings.settings.hotKey.displayString)
                 .font(.system(size: 13.5))
                 .foregroundStyle(recording ? .tertiary : .primary)
             Spacer(minLength: 4)

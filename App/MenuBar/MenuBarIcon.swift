@@ -48,7 +48,7 @@ enum MenuBarIcon {
     }
 
     static func countdown(symbolName: String, seconds: Int) -> NSImage {
-        let label = "\(seconds)s"
+        let label = String(localized: "\(seconds)s")
         // Wide enough for two digits, so the item doesn't shift when the count drops below 10.
         let labelWidth = max(textSize(label).width, textSize("88s").width)
         let symbolWidth = symbol(symbolName)?.size.width ?? 0

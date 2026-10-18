@@ -8,18 +8,26 @@ struct FinishingStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            StepHeading(title: "Getting your vault ready", subtitle: "This takes a few seconds the first time.")
+            StepHeading(
+                title: String(localized: "Getting your vault ready"),
+                subtitle: String(localized: "This takes a few seconds the first time."))
             VStack(alignment: .leading, spacing: 10) {
                 let checklist = model.checklist
                 let states = rowStates(checklist)
-                row("Signed in", detail: model.configuredServer?.displayName, state: .done)
-                row("Vault unlocked", detail: nil, state: states[0])
+                row(String(localized: "Signed in"), detail: model.configuredServer?.displayName, state: .done)
+                row(String(localized: "Vault unlocked"), detail: nil, state: states[0])
                 if checklist.sessionSaved == false {
-                    row("Session not saved to the Keychain", detail: "master password next time", state: .warning)
+                    row(
+                        String(localized: "Session not saved to the Keychain"),
+                        detail: String(localized: "master password next time"), state: .warning)
                 } else {
-                    row("Session saved to the Keychain", detail: "Touch ID next time", state: states[1])
+                    row(
+                        String(localized: "Session saved to the Keychain"),
+                        detail: String(localized: "Touch ID next time"), state: states[1])
                 }
-                row("Building the search index", detail: checklist.logins.map { "\($0) logins" }, state: states[2])
+                row(
+                    String(localized: "Building the search index"),
+                    detail: checklist.logins.map { String(localized: "\($0) logins") }, state: states[2])
             }
             .padding(.top, 16)
             Text("Search opens by itself when the index is ready.")
@@ -35,10 +43,10 @@ struct FinishingStepView: View {
 
         var spoken: String {
             switch self {
-            case .done: "Done"
-            case .working: "In progress"
-            case .waiting: "Waiting"
-            case .warning: "Warning"
+            case .done: String(localized: "Done")
+            case .working: String(localized: "In progress")
+            case .waiting: String(localized: "Waiting")
+            case .warning: String(localized: "Warning")
             }
         }
     }

@@ -50,23 +50,32 @@ public enum SetupProblem: Sendable, Equatable {
 
     public var title: String {
         switch self {
-        case .notInstalled: "Bitwarden CLI not found"
-        case .tooOld: "Bitwarden CLI is out of date"
-        case .unsafeBinary: "Bitwarden CLI isn’t safe to use"
+        case .notInstalled: String(localized: "Bitwarden CLI not found", bundle: .module)
+        case .tooOld: String(localized: "Bitwarden CLI is out of date", bundle: .module)
+        case .unsafeBinary: String(localized: "Bitwarden CLI isn’t safe to use", bundle: .module)
         }
     }
 
     public var message: String {
         switch self {
         case .notInstalled:
-            "VaultLight uses the Bitwarden command-line tool for every vault action. Install it with Homebrew, "
-                + "then open this panel again."
+            String(
+                localized: """
+                    VaultLight uses the Bitwarden command-line tool for every vault action. Install it with Homebrew, \
+                    then open this panel again.
+                    """, bundle: .module)
         case .tooOld:
-            "VaultLight needs Bitwarden CLI \(BWClient.minimumVersion) or later. Upgrade it with Homebrew, then "
-                + "open this panel again."
+            String(
+                localized: """
+                    VaultLight needs Bitwarden CLI \(BWClient.minimumVersion.description) or later. Upgrade it with \
+                    Homebrew, then open this panel again.
+                    """, bundle: .module)
         case .unsafeBinary:
-            "Another user could change the bw binary or a folder on its way, so VaultLight won’t run it. Fix its "
-                + "ownership and permissions, or choose another location in Settings."
+            String(
+                localized: """
+                    Another user could change the bw binary or a folder on its way, so VaultLight won’t run it. Fix \
+                    its ownership and permissions, or choose another location in Settings.
+                    """, bundle: .module)
         }
     }
 
@@ -85,13 +94,17 @@ public enum SetupProblem: Sendable, Equatable {
         switch self {
         case .notInstalled:
             guard let path else {
-                return "Looked in /opt/homebrew/bin and /usr/local/bin. A custom path can be set in Settings."
+                return String(
+                    localized: "Looked in /opt/homebrew/bin and /usr/local/bin. A custom path can be set in Settings.",
+                    bundle: .module)
             }
-            return "Looked at \(path). Change it in Settings."
+            return String(localized: "Looked at \(path). Change it in Settings.", bundle: .module)
         case .tooOld(let installed):
-            return path.map { "Found bw \(installed) at \($0)." } ?? "Found bw \(installed)."
+            return path.map { String(localized: "Found bw \(installed) at \($0).", bundle: .module) }
+                ?? String(localized: "Found bw \(installed).", bundle: .module)
         case .unsafeBinary:
-            return path.map { "Refused \($0)." } ?? "Refused the bw at the configured location."
+            return path.map { String(localized: "Refused \($0).", bundle: .module) }
+                ?? String(localized: "Refused the bw at the configured location.", bundle: .module)
         }
     }
 }
@@ -104,9 +117,9 @@ public enum PanelFailure: Sendable, Equatable {
 
     public var message: String {
         switch self {
-        case .timedOut: "bw didn’t respond within 15 s"
-        case .offline: "Can’t reach the Bitwarden server"
-        case .unknown: "Something went wrong"
+        case .timedOut: String(localized: "bw didn’t respond within 15 s", bundle: .module)
+        case .offline: String(localized: "Can’t reach the Bitwarden server", bundle: .module)
+        case .unknown: String(localized: "Something went wrong", bundle: .module)
         }
     }
 }
@@ -115,16 +128,17 @@ extension MasterPasswordReason {
     /// The footer's reason (design 07).
     public var footer: String {
         switch self {
-        case .noStoredSession: "Master password required"
-        case .restarted: "Master password required after restart"
-        case .storedSessionExpired: "Stored session expired"
-        case .sessionRejected: "Stored session no longer works"
+        case .noStoredSession: String(localized: "Master password required", bundle: .module)
+        case .restarted: String(localized: "Master password required after restart", bundle: .module)
+        case .storedSessionExpired: String(localized: "Stored session expired", bundle: .module)
+        case .sessionRejected: String(localized: "Stored session no longer works", bundle: .module)
         }
     }
 
     /// The line under the field (design 07).
     public static func prompt(email: String?) -> String {
-        email.map { "Enter the master password for \($0)." } ?? "Enter your master password."
+        email.map { String(localized: "Enter the master password for \($0).", bundle: .module) }
+            ?? String(localized: "Enter your master password.", bundle: .module)
     }
 }
 
@@ -132,21 +146,19 @@ extension MasterPasswordReason {
 public enum RelativeTime {
     /// Whole units, rounded down, at least one minute.
     public static func duration(_ seconds: TimeInterval) -> String {
-        let units: [(TimeInterval, String)] = [(86_400, "day"), (3_600, "hour"), (60, "minute")]
-        for (size, name) in units where seconds >= size {
-            let count = Int(seconds / size)
-            return "\(count) \(name)\(count == 1 ? "" : "s")"
-        }
-        return "1 minute"
+        // Plural forms come from the String Catalog ("1 day", "6 days").
+        if seconds >= 86_400 { return String(localized: "\(Int(seconds / 86_400)) days", bundle: .module) }
+        if seconds >= 3_600 { return String(localized: "\(Int(seconds / 3_600)) hours", bundle: .module) }
+        return String(localized: "\(max(1, Int(seconds / 60))) minutes", bundle: .module)
     }
 
     /// Abbreviated, for "synced 3 min ago" (design 13, 14).
     public static func ago(_ seconds: TimeInterval) -> String {
         switch seconds {
-        case ..<60: "just now"
-        case ..<3_600: "\(Int(seconds / 60)) min ago"
-        case ..<86_400: "\(Int(seconds / 3_600)) h ago"
-        default: "\(Int(seconds / 86_400)) d ago"
+        case ..<60: String(localized: "just now", bundle: .module)
+        case ..<3_600: String(localized: "\(Int(seconds / 60)) min ago", bundle: .module)
+        case ..<86_400: String(localized: "\(Int(seconds / 3_600)) h ago", bundle: .module)
+        default: String(localized: "\(Int(seconds / 86_400)) d ago", bundle: .module)
         }
     }
 }

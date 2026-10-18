@@ -37,8 +37,8 @@ struct KeyHint: View {
 
     static func spoken(_ key: String) -> String {
         switch key {
-        case "↵": "Return"
-        case "esc": "Escape"
+        case "↵": String(localized: "Return")
+        case "esc": String(localized: "Escape")
         default: key
         }
     }

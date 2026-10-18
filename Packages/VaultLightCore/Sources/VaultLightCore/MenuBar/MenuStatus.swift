@@ -12,8 +12,10 @@ public struct MenuStatus: Sendable, Equatable {
     /// wins over it.
     public init(state: VaultState?, summary: VaultSummary, lastSyncedAt: Date? = nil, now: Date) {
         if summary.isUnlocked {
-            title = "Unlocked"
-            let synced = lastSyncedAt.map { "synced \(RelativeTime.ago(now.timeIntervalSince($0)))" }
+            title = String(localized: "Unlocked", bundle: .module)
+            let synced = lastSyncedAt.map {
+                String(localized: "synced \(RelativeTime.ago(now.timeIntervalSince($0)))", bundle: .module)
+            }
             let parts = [summary.email, synced].compactMap(\.self)
             detail = parts.isEmpty ? nil : parts.joined(separator: " · ")
             canSync = true
@@ -24,20 +26,23 @@ public struct MenuStatus: Sendable, Equatable {
         canLock = false
         switch state {
         case .needsOnboarding:
-            title = "Not signed in"
-            detail = "Open VaultLight to set up"
+            title = String(localized: "Not signed in", bundle: .module)
+            detail = String(localized: "Open VaultLight to set up", bundle: .module)
         case .storedSessionAvailable:
-            title = "Locked"
+            title = String(localized: "Locked", bundle: .module)
             if let expiry = summary.storedSessionExpiresAt, expiry > now {
-                detail = "Touch ID unlocks · session expires in \(RelativeTime.duration(expiry.timeIntervalSince(now)))"
+                detail = String(
+                    localized:
+                        "Touch ID unlocks · session expires in \(RelativeTime.duration(expiry.timeIntervalSince(now)))",
+                    bundle: .module)
             } else {
-                detail = "Touch ID unlocks"
+                detail = String(localized: "Touch ID unlocks", bundle: .module)
             }
         case .needsMasterPassword(let reason):
-            title = "Locked"
+            title = String(localized: "Locked", bundle: .module)
             detail = reason.footer
         case .unlocked, nil:
-            title = "Locked"
+            title = String(localized: "Locked", bundle: .module)
             detail = nil
         }
     }

@@ -56,17 +56,17 @@ public enum PanelFooter: Sendable, Equatable {
     public var message: String? {
         switch self {
         case .idle: nil
-        case .usernameCopied: "Username copied"
-        case .passwordCopied: "Password copied"
-        case .codeCopied: "Code copied"
-        case .noPassword: "No password for this item"
-        case .noTOTP: "No one-time code for this item"
-        case .noUsername: "No username for this item"
-        case .noURL: "No website for this item"
-        case .copyFailed: "Copy failed · clipboard unchanged"
-        case .clipboardWriteFailed: "Copy failed"
-        case .timedOut: "bw didn’t respond within 15 s"
-        case .locked: "Vault is locked"
+        case .usernameCopied: String(localized: "Username copied", bundle: .module)
+        case .passwordCopied: String(localized: "Password copied", bundle: .module)
+        case .codeCopied: String(localized: "Code copied", bundle: .module)
+        case .noPassword: String(localized: "No password for this item", bundle: .module)
+        case .noTOTP: String(localized: "No one-time code for this item", bundle: .module)
+        case .noUsername: String(localized: "No username for this item", bundle: .module)
+        case .noURL: String(localized: "No website for this item", bundle: .module)
+        case .copyFailed: String(localized: "Copy failed · clipboard unchanged", bundle: .module)
+        case .clipboardWriteFailed: String(localized: "Copy failed", bundle: .module)
+        case .timedOut: String(localized: "bw didn’t respond within 15 s", bundle: .module)
+        case .locked: String(localized: "Vault is locked", bundle: .module)
         }
     }
 }

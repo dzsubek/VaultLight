@@ -19,7 +19,7 @@ final class AboutWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
-        window.title = "About VaultLight"
+        window.title = String(localized: "About VaultLight")
         super.init(window: window)
         window.center()
     }
@@ -92,9 +92,9 @@ struct AboutView: View {
     }
 
     private var cliLine: String {
-        guard let version = model.bwInUse?.version else { return "bw not found" }
+        guard let version = model.bwInUse?.version else { return String(localized: "bw not found") }
         // The server `bw` reports; without one, the configured server.
         let server = model.summary.serverURL.map { ServerChoice(serverURL: $0) } ?? model.settings.settings.server
-        return "bw \(version) · \(server.displayName)"
+        return String(localized: "bw \(version) · \(server.displayName)")
     }
 }

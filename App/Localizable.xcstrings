@@ -1,0 +1,677 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "  ·  " : {
+
+    },
+    "$" : {
+
+    },
+    "%@ is already used by another app" : {
+
+    },
+    "%@ is already used by another app. Choose a different shortcut." : {
+
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · last sync failed" : {
+
+    },
+    "%@ · not signed in" : {
+
+    },
+    "%@ · offline" : {
+
+    },
+    "%@, clipboard clears in %lld seconds" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, clipboard clears in %2$lld seconds"
+          }
+        }
+      }
+    },
+    "%@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld logins" : {
+
+    },
+    "%lld seconds" : {
+
+    },
+    "%llds" : {
+
+    },
+    "1 day" : {
+
+    },
+    "1 hour" : {
+
+    },
+    "15 minutes" : {
+
+    },
+    "30 days" : {
+
+    },
+    "30 minutes" : {
+
+    },
+    "5 minutes" : {
+
+    },
+    "7 days" : {
+
+    },
+    "8 hours" : {
+
+    },
+    "API key" : {
+
+    },
+    "About VaultLight" : {
+
+    },
+    "Account" : {
+
+    },
+    "After this, Touch ID unlocks VaultLight for up to %@. The master password is never stored." : {
+
+    },
+    "After this, the master password is required again." : {
+
+    },
+    "An API-key sign-in doesn’t unlock the vault, so enter your master password once." : {
+
+    },
+    "An unofficial client for Bitwarden. VaultLight is not affiliated with or endorsed by Bitwarden, Inc." : {
+
+    },
+    "Auto-detect" : {
+
+    },
+    "Auto-lock" : {
+
+    },
+    "Back" : {
+
+    },
+    "Background sync" : {
+
+    },
+    "Bitwarden CLI" : {
+
+    },
+    "Bitwarden EU" : {
+
+    },
+    "Bitwarden US" : {
+
+    },
+    "Building the search index" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Change the server?" : {
+
+    },
+    "Changing the server signs you out." : {
+
+    },
+    "Checking the vault" : {
+
+    },
+    "Choose Another Shortcut…" : {
+
+    },
+    "Choose the Bitwarden CLI (bw)" : {
+
+    },
+    "Choose your server" : {
+
+    },
+    "Clear copied secrets after" : {
+
+    },
+    "Cleared only if the clipboard still holds the copied value. Usernames are not cleared." : {
+
+    },
+    "Clears in %llds" : {
+
+    },
+    "Clipboard" : {
+
+    },
+    "Clipboard clears in %lld seconds" : {
+
+    },
+    "Close" : {
+
+    },
+    "Code" : {
+
+    },
+    "Code sent by email" : {
+
+    },
+    "Continue" : {
+
+    },
+    "Copied" : {
+
+    },
+    "Copies the password" : {
+
+    },
+    "Copy" : {
+
+    },
+    "Copy command" : {
+
+    },
+    "Copy password" : {
+
+    },
+    "Custom…" : {
+
+    },
+    "Cut" : {
+
+    },
+    "Done" : {
+
+    },
+    "Edit" : {
+
+    },
+    "Email" : {
+
+    },
+    "Email and password" : {
+
+    },
+    "Enter the 6-digit code from the email Bitwarden sent for %@." : {
+
+    },
+    "Enter the 6-digit code from the email Bitwarden sent." : {
+
+    },
+    "Enter the 6-digit code from your authenticator app for %@." : {
+
+    },
+    "Enter the 6-digit code from your authenticator app." : {
+
+    },
+    "Enter your master password once more to unlock the vault." : {
+
+    },
+    "Error" : {
+
+    },
+    "Escape" : {
+
+    },
+    "Every 15 minutes" : {
+
+    },
+    "Every 5 minutes" : {
+
+    },
+    "Every hour" : {
+
+    },
+    "Favorites" : {
+
+    },
+    "Find both in the web vault under Settings → Security → Keys → View API key. The key is used for this sign-in only and is not stored." : {
+
+    },
+    "General" : {
+
+    },
+    "Getting your vault ready" : {
+
+    },
+    "Hide VaultLight" : {
+
+    },
+    "If your account uses a two-step method the CLI can’t complete, such as a security key or Duo, sign in with an API key instead." : {
+
+    },
+    "In progress" : {
+
+    },
+    "In use" : {
+
+    },
+    "Last synced" : {
+
+    },
+    "Launch at login" : {
+
+    },
+    "Licenses" : {
+
+    },
+    "Location" : {
+
+    },
+    "Lock Now" : {
+
+    },
+    "Lock after idle" : {
+
+    },
+    "Lock and Forget" : {
+
+    },
+    "Lock and Forget…" : {
+
+    },
+    "Lock and forget?" : {
+
+    },
+    "Locked" : {
+
+    },
+    "Master password" : {
+
+    },
+    "Minimize" : {
+
+    },
+    "Never" : {
+
+    },
+    "No access to the app?" : {
+
+    },
+    "No logins to show" : {
+
+    },
+    "No matches for “%@”" : {
+
+    },
+    "Not found" : {
+
+    },
+    "Not signed in" : {
+
+    },
+    "OK" : {
+
+    },
+    "Off" : {
+
+    },
+    "Open" : {
+
+    },
+    "Open VaultLight" : {
+
+    },
+    "Open VaultLight to sign in" : {
+
+    },
+    "Paste" : {
+
+    },
+    "Press Return to try again." : {
+
+    },
+    "Press a shortcut…" : {
+
+    },
+    "Press, then press the new shortcut" : {
+
+    },
+    "Quit VaultLight" : {
+
+    },
+    "Recent" : {
+
+    },
+    "Redo" : {
+
+    },
+    "Require master password after restart" : {
+
+    },
+    "Reset to ⌘⇧Space" : {
+
+    },
+    "Retry Sign Out" : {
+
+    },
+    "Return" : {
+
+    },
+    "Search looks at the names, usernames and hosts of your logins." : {
+
+    },
+    "Search opens by itself when the index is ready." : {
+
+    },
+    "Search vault" : {
+
+    },
+    "Security" : {
+
+    },
+    "Select All" : {
+
+    },
+    "Self-hosted" : {
+
+    },
+    "Self-hosted…" : {
+
+    },
+    "Send a code by email" : {
+
+    },
+    "Server" : {
+
+    },
+    "Server address" : {
+
+    },
+    "Session not saved to the Keychain" : {
+
+    },
+    "Session saved to the Keychain" : {
+
+    },
+    "Set up VaultLight" : {
+
+    },
+    "Setting up…" : {
+
+    },
+    "Settings" : {
+
+    },
+    "Settings…" : {
+
+    },
+    "Setup needed" : {
+
+    },
+    "Shortcut" : {
+
+    },
+    "Shortcut unavailable" : {
+
+    },
+    "Shortcut, %@" : {
+
+    },
+    "Sign Out" : {
+
+    },
+    "Sign Out and Change" : {
+
+    },
+    "Sign Out…" : {
+
+    },
+    "Sign in" : {
+
+    },
+    "Sign in to Bitwarden" : {
+
+    },
+    "Sign out didn’t finish" : {
+
+    },
+    "Sign out of Bitwarden?" : {
+
+    },
+    "Sign-in method" : {
+
+    },
+    "Signed in" : {
+
+    },
+    "Signed in as %@." : {
+
+    },
+    "Signed in · %lld logins" : {
+
+    },
+    "Signed in · locked" : {
+
+    },
+    "Signed in." : {
+
+    },
+    "Source code" : {
+
+    },
+    "Startup" : {
+
+    },
+    "Stay unlocked after Touch ID" : {
+
+    },
+    "Step %lld of 3, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Step %1$lld of 3, %2$@"
+          }
+        }
+      }
+    },
+    "Stored session lasts" : {
+
+    },
+    "Sync" : {
+
+    },
+    "Sync Now" : {
+
+    },
+    "Sync now (⌘R)" : {
+
+    },
+    "Syncing…" : {
+
+    },
+    "Syncs the vault again. Shortcut: Command R." : {
+
+    },
+    "TOTP" : {
+
+    },
+    "The server wasn’t changed" : {
+
+    },
+    "The vault is locked and the stored session is gone, but the Bitwarden CLI is still signed in." : {
+
+    },
+    "This takes a few seconds the first time." : {
+
+    },
+    "Touch ID" : {
+
+    },
+    "Touch ID next time" : {
+
+    },
+    "Touch ID to unlock" : {
+
+    },
+    "Try again" : {
+
+    },
+    "Two-step code" : {
+
+    },
+    "Two-step login" : {
+
+    },
+    "Undo" : {
+
+    },
+    "Unlock" : {
+
+    },
+    "Unlock your vault" : {
+
+    },
+    "Use Server" : {
+
+    },
+    "Use the email and master password of your Bitwarden account." : {
+
+    },
+    "Use your personal API key. It works with every two-step method." : {
+
+    },
+    "Use ⌘, ⌥ or ⌃ with the key." : {
+
+    },
+    "Username" : {
+
+    },
+    "Vault" : {
+
+    },
+    "Vault locked" : {
+
+    },
+    "Vault unlocked" : {
+
+    },
+    "VaultLight" : {
+
+    },
+    "VaultLight also locks on sleep, screen lock and user switch." : {
+
+    },
+    "VaultLight deletes the stored session, clears the unlocked vault and signs out of the Bitwarden CLI. Your settings are kept." : {
+
+    },
+    "VaultLight includes no third-party code." : {
+
+    },
+    "VaultLight isn’t ready" : {
+
+    },
+    "VaultLight locks the vault and deletes the stored session. Your master password is needed next time." : {
+
+    },
+    "VaultLight never looks up bw through PATH, and refuses a binary that other users can modify." : {
+
+    },
+    "VaultLight signs in through the Bitwarden CLI. Pick where your account lives." : {
+
+    },
+    "VaultLight signs you out first, because the Bitwarden CLI can only change servers while signed out. Then sign in on %@." : {
+
+    },
+    "VaultLight signs you out first, because the Bitwarden CLI can only change servers while signed out. Then sign in on the new server." : {
+
+    },
+    "VaultLight, shortcut unavailable" : {
+
+    },
+    "Vaultwarden or a Bitwarden server you run" : {
+
+    },
+    "Verify" : {
+
+    },
+    "Version %@" : {
+
+    },
+    "Waiting" : {
+
+    },
+    "Warning" : {
+
+    },
+    "Window" : {
+
+    },
+    "Works in every app, including full-screen ones." : {
+
+    },
+    "Wrong master password. Try again." : {
+
+    },
+    "You are signed out. Open VaultLight to choose the server and sign in." : {
+
+    },
+    "bw %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "bw %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "bw not found" : {
+
+    },
+    "client_id" : {
+
+    },
+    "client_secret" : {
+
+    },
+    "https://vault.example.com" : {
+
+    },
+    "master password next time" : {
+
+    },
+    "stored session expires in %@" : {
+
+    },
+    "unlock your vault" : {
+
+    },
+    "vault.bitwarden.com · default" : {
+
+    },
+    "vault.bitwarden.eu" : {
+
+    },
+    "↵" : {
+
+    }
+  },
+  "version" : "1.0"
+}

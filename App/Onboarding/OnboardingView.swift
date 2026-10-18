@@ -29,7 +29,7 @@ struct OnboardingView: View {
             Divider()
             FooterBar(status: footerStatus) {
                 if canGoBack { KeyHint(key: "⌘[", label: "Back") }
-                KeyHint(key: "esc", label: "Close")
+                KeyHint(key: "esc", label: String(localized: "Close"))
             }
         }
     }
@@ -62,11 +62,13 @@ struct OnboardingView: View {
     private var footerStatus: String {
         let server = model.configuredServer?.displayName ?? model.chosenServer.displayName
         switch model.step {
-        case .server: return "Not signed in"
-        case .signIn: return "\(server) · not signed in"
-        case .twoFactor: return model.emailCodeSent ? "Code sent by email" : "\(server) · not signed in"
-        case .unlock: return "Signed in · locked"
-        case .finishing: return "Setting up…"
+        case .server: return String(localized: "Not signed in")
+        case .signIn: return String(localized: "\(server) · not signed in")
+        case .twoFactor:
+            return model.emailCodeSent
+                ? String(localized: "Code sent by email") : String(localized: "\(server) · not signed in")
+        case .unlock: return String(localized: "Signed in · locked")
+        case .finishing: return String(localized: "Setting up…")
         }
     }
 }
@@ -90,7 +92,7 @@ struct AppMark: View {
 /// ① Server ② Sign in ③ Unlock: done steps get a check, the current one is filled.
 private struct StepIndicator: View {
     let current: Int
-    private let titles = ["Server", "Sign in", "Unlock"]
+    private let titles = [String(localized: "Server"), String(localized: "Sign in"), String(localized: "Unlock")]
 
     var body: some View {
         HStack(spacing: 14) {
@@ -118,7 +120,7 @@ private struct StepIndicator: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Step \(current + 1) of 3, \(titles[current])")
+        .accessibilityLabel(String(localized: "Step \(current + 1) of 3, \(titles[current])"))
     }
 }
 
@@ -156,14 +158,17 @@ private struct ServerStepView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             StepHeading(
-                title: "Choose your server",
-                subtitle: "VaultLight signs in through the Bitwarden CLI. Pick where your account lives."
+                title: String(localized: "Choose your server"),
+                subtitle: String(
+                    localized: "VaultLight signs in through the Bitwarden CLI. Pick where your account lives.")
             )
             .padding(.horizontal, 25)
             VStack(spacing: 2) {
-                row(.bitwardenUS, title: "Bitwarden US", subtitle: "vault.bitwarden.com · default")
-                row(.bitwardenEU, title: "Bitwarden EU", subtitle: "vault.bitwarden.eu")
-                row(.selfHosted, title: "Self-hosted", subtitle: "Vaultwarden or a Bitwarden server you run")
+                row(.bitwardenUS, title: "Bitwarden US", subtitle: String(localized: "vault.bitwarden.com · default"))
+                row(.bitwardenEU, title: "Bitwarden EU", subtitle: String(localized: "vault.bitwarden.eu"))
+                row(
+                    .selfHosted, title: String(localized: "Self-hosted"),
+                    subtitle: String(localized: "Vaultwarden or a Bitwarden server you run"))
             }
             .padding(.horizontal, 12)
             .padding(.top, 14)
@@ -175,7 +180,7 @@ private struct ServerStepView: View {
                 Button {
                     Task { await model.continueFromServer() }
                 } label: {
-                    ReturnLabel(title: "Continue", busy: model.isBusy)
+                    ReturnLabel(title: String(localized: "Continue"), busy: model.isBusy)
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(model.isBusy)

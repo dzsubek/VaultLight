@@ -18,10 +18,10 @@ struct SignInStepView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             StepHeading(
-                title: "Sign in to Bitwarden",
+                title: String(localized: "Sign in to Bitwarden"),
                 subtitle: model.method == .emailPassword
-                    ? "Use the email and master password of your Bitwarden account."
-                    : "Use your personal API key. It works with every two-step method.")
+                    ? String(localized: "Use the email and master password of your Bitwarden account.")
+                    : String(localized: "Use your personal API key. It works with every two-step method."))
             MethodPicker(method: $model.method).padding(.top, 14)
             if model.method == .emailPassword {
                 labeled("Email") {
@@ -70,7 +70,9 @@ struct SignInStepView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.trailing, 70)
             .padding(.top, 14)
-            StepButtons(title: "Sign in", busy: model.isBusy, onBack: { Task { await model.back() } }, onSubmit: submit)
+            StepButtons(
+                title: String(localized: "Sign in"), busy: model.isBusy, onBack: { Task { await model.back() } },
+                onSubmit: submit)
         }
         .stepInsets()
         .shake(attempts)
@@ -135,8 +137,8 @@ private struct MethodPicker: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            segment("Email and password", .emailPassword)
-            segment("API key", .apiKey)
+            segment(String(localized: "Email and password"), .emailPassword)
+            segment(String(localized: "API key"), .apiKey)
         }
         .padding(2)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.chipFill))
@@ -194,7 +196,7 @@ struct TwoFactorStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            StepHeading(title: "Two-step login", subtitle: subtitle)
+            StepHeading(title: String(localized: "Two-step login"), subtitle: subtitle)
             CodeBoxes(code: $code, focused: $focused, failed: model.failure != nil, onComplete: verify)
                 .padding(.top, 14)
             if let failure = model.failure {
@@ -211,7 +213,9 @@ struct TwoFactorStepView: View {
                 .font(.system(size: 13))
                 .padding(.top, 14)
             }
-            StepButtons(title: "Verify", busy: model.isBusy, onBack: { Task { await model.back() } }, onSubmit: verify)
+            StepButtons(
+                title: String(localized: "Verify"), busy: model.isBusy, onBack: { Task { await model.back() } },
+                onSubmit: verify)
         }
         .stepInsets()
         .shake(attempts)
@@ -230,10 +234,15 @@ struct TwoFactorStepView: View {
     }
 
     private var subtitle: String {
-        let account = model.email.isEmpty ? "" : " for \(model.email)"
-        return model.twoFactorMethod == .email
-            ? "Enter the 6-digit code from the email Bitwarden sent\(account)."
-            : "Enter the 6-digit code from your authenticator app\(account)."
+        let email = model.email
+        switch (model.twoFactorMethod == .email, email.isEmpty) {
+        case (true, true): return String(localized: "Enter the 6-digit code from the email Bitwarden sent.")
+        case (true, false):
+            return String(localized: "Enter the 6-digit code from the email Bitwarden sent for \(email).")
+        case (false, true): return String(localized: "Enter the 6-digit code from your authenticator app.")
+        case (false, false):
+            return String(localized: "Enter the 6-digit code from your authenticator app for \(email).")
+        }
     }
 
     private func verify() {
@@ -308,7 +317,7 @@ struct UnlockStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            StepHeading(title: "Unlock your vault", subtitle: subtitle)
+            StepHeading(title: String(localized: "Unlock your vault"), subtitle: subtitle)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Master password").font(.system(size: 13)).foregroundStyle(.secondary)
                 SecureField("", text: $password)
@@ -328,7 +337,9 @@ struct UnlockStepView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 14)
-            StepButtons(title: "Unlock", busy: model.isBusy, onBack: { Task { await model.back() } }, onSubmit: submit)
+            StepButtons(
+                title: String(localized: "Unlock"), busy: model.isBusy, onBack: { Task { await model.back() } },
+                onSubmit: submit)
         }
         .stepInsets()
         .shake(attempts)
@@ -343,10 +354,14 @@ struct UnlockStepView: View {
     }
 
     private var subtitle: String {
-        let account = model.signedInEmail.map { "Signed in as \($0). " } ?? "Signed in. "
-        return model.method == .apiKey
-            ? account + "An API-key sign-in doesn’t unlock the vault, so enter your master password once."
-            : account + "Enter your master password once more to unlock the vault."
+        // Two sentences, each translated on its own.
+        let account =
+            model.signedInEmail.map { String(localized: "Signed in as \($0).") } ?? String(localized: "Signed in.")
+        let request =
+            model.method == .apiKey
+            ? String(localized: "An API-key sign-in doesn’t unlock the vault, so enter your master password once.")
+            : String(localized: "Enter your master password once more to unlock the vault.")
+        return "\(account) \(request)"
     }
 
     private func submit() {

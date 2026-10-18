@@ -57,13 +57,22 @@ extension SyncStatus {
         let ago = lastSyncedAt.map { RelativeTime.ago(now.timeIntervalSince($0)) }
         switch failure {
         case .offline:
-            return SyncLine(tone: .warning, text: "Offline — showing cached vault", offersRetry: false)
+            return SyncLine(
+                tone: .warning, text: String(localized: "Offline — showing cached vault", bundle: .module),
+                offersRetry: false)
         case .failed:
-            let text = ago.map { "Sync failed — last synced \($0)" } ?? "Sync failed"
+            let text =
+                ago.map { String(localized: "Sync failed — last synced \($0)", bundle: .module) }
+                ?? String(localized: "Sync failed", bundle: .module)
             return SyncLine(tone: .error, text: text, offersRetry: true)
         case nil:
-            if let ago { return SyncLine(tone: .neutral, text: "Synced \(ago)", offersRetry: false) }
-            return isSyncing ? SyncLine(tone: .neutral, text: "Syncing…", offersRetry: false) : nil
+            if let ago {
+                return SyncLine(
+                    tone: .neutral, text: String(localized: "Synced \(ago)", bundle: .module), offersRetry: false)
+            }
+            return isSyncing
+                ? SyncLine(tone: .neutral, text: String(localized: "Syncing…", bundle: .module), offersRetry: false)
+                : nil
         }
     }
 }

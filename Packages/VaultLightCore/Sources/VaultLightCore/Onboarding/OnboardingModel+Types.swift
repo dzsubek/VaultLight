@@ -37,17 +37,26 @@ extension OnboardingModel {
 
         public var message: String {
             switch self {
-            case .invalidServerURL: "Enter the server’s full address, like https://vault.example.com."
-            case .serverUnreachable: "Can’t reach this server. Check the address and that the server is running."
-            case .wrongCredentials: "Email or master password is incorrect."
-            case .wrongAPIKey: "client_id or client_secret is incorrect."
-            case .wrongCode: "That code didn’t work. Enter the current code from your app."
-            case .wrongEmailCode: "That code didn’t work. Enter the code from the latest email."
-            case .wrongMasterPassword: "Wrong master password. Try again."
-            case .twoFactorExpired: "VaultLight keeps your master password for 5 minutes at most. Sign in again."
-            case .offline: "Can’t reach Bitwarden. Check your internet connection."
-            case .timedOut: "bw didn’t respond within 15 s. Try again."
-            case .failed: "That didn’t work. Try again."
+            case .invalidServerURL:
+                String(localized: "Enter the server’s full address, like https://vault.example.com.", bundle: .module)
+            case .serverUnreachable:
+                String(
+                    localized: "Can’t reach this server. Check the address and that the server is running.",
+                    bundle: .module)
+            case .wrongCredentials: String(localized: "Email or master password is incorrect.", bundle: .module)
+            case .wrongAPIKey: String(localized: "client_id or client_secret is incorrect.", bundle: .module)
+            case .wrongCode:
+                String(localized: "That code didn’t work. Enter the current code from your app.", bundle: .module)
+            case .wrongEmailCode:
+                String(localized: "That code didn’t work. Enter the code from the latest email.", bundle: .module)
+            case .wrongMasterPassword: String(localized: "Wrong master password. Try again.", bundle: .module)
+            case .twoFactorExpired:
+                String(
+                    localized: "VaultLight keeps your master password for 5 minutes at most. Sign in again.",
+                    bundle: .module)
+            case .offline: String(localized: "Can’t reach Bitwarden. Check your internet connection.", bundle: .module)
+            case .timedOut: String(localized: "bw didn’t respond within 15 s. Try again.", bundle: .module)
+            case .failed: String(localized: "That didn’t work. Try again.", bundle: .module)
             }
         }
 

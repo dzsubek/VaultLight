@@ -253,7 +253,7 @@ final class PanelController {
         isAuthenticating = true
         defer { isAuthenticating = false }
         do {
-            await apply(try await session.unlockWithStoredSession(reason: "unlock your vault"))
+            await apply(try await session.unlockWithStoredSession(reason: String(localized: "unlock your vault")))
         } catch SessionStoreError.cancelled, SessionStoreError.authenticationFailed {
             content = .touchID(canceled: true)
         } catch {

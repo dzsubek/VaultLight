@@ -39,12 +39,14 @@ struct PanelFooterView: View {
                 countdown(secondsUntilClear)
             } else {
                 HStack(spacing: PanelMetrics.footerHintSpacing) {
-                    hint(key: "↵", label: "Copy password", showsLabel: hintLabels, dimmed: !hasSelection)
-                    hint(key: "⌘U", label: "Username", showsLabel: hintLabels, dimmed: !hasSelection)
                     hint(
-                        key: "⌘T", label: "Code", showsLabel: hintLabels,
+                        key: "↵", label: String(localized: "Copy password"), showsLabel: hintLabels,
+                        dimmed: !hasSelection)
+                    hint(key: "⌘U", label: String(localized: "Username"), showsLabel: hintLabels, dimmed: !hasSelection)
+                    hint(
+                        key: "⌘T", label: String(localized: "Code"), showsLabel: hintLabels,
                         dimmed: !hasSelection || !isTOTPAvailable)
-                    hint(key: "⌘O", label: "Open", showsLabel: hintLabels, dimmed: !hasSelection)
+                    hint(key: "⌘O", label: String(localized: "Open"), showsLabel: hintLabels, dimmed: !hasSelection)
                 }
             }
         }
@@ -119,12 +121,12 @@ struct PanelFooterView: View {
                     .rotationEffect(.degrees(-90))
             }
             .frame(width: 12, height: 12)
-            Text("Clears in \(seconds)s")
+            Text(String(localized: "Clears in \(seconds)s"))
                 .font(.system(size: PanelMetrics.footerFontSize).monospacedDigit())
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Clipboard clears in \(seconds) seconds")
+        .accessibilityLabel(String(localized: "Clipboard clears in \(seconds) seconds"))
     }
 
     private func hint(key: String, label: String, showsLabel: Bool, dimmed: Bool) -> some View {
