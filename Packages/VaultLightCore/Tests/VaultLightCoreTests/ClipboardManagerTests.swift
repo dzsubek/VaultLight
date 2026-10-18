@@ -11,6 +11,8 @@ final class SpyPasteboard: Clipboard {
     private(set) var preparedOptions: [NSPasteboard.ContentsOptions] = []
     private(set) var clears = 0
     var failsToWrite = false
+    /// Another app takes the pasteboard right after our write, before the manager reads `changeCount`.
+    var takenRightAfterWrite = false
 
     init() {
         backing = NSPasteboard(name: name)
@@ -29,7 +31,10 @@ final class SpyPasteboard: Clipboard {
     }
 
     func writeObjects(_ objects: [any NSPasteboardWriting]) -> Bool {
-        failsToWrite ? false : backing.writeObjects(objects)
+        guard !failsToWrite else { return false }
+        let written = backing.writeObjects(objects)
+        if takenRightAfterWrite { copyElsewhere("notes") }
+        return written
     }
 
     func clearContents() -> Int {
@@ -58,7 +63,9 @@ final class ClipboardTestClock {
 
     var now: ContinuousClock.Instant { start + elapsed }
 
-    func sleep(_ duration: Duration) async {
+    /// Throws when cancelled, like `Task.sleep`.
+    func sleep(_ duration: Duration) async throws {
+        try Task.checkCancellation()
         elapsed += duration
         onSleep?(elapsed)
         await Task.yield()
@@ -78,7 +85,7 @@ struct ClipboardManagerTests {
     init() {
         let clock = clock
         manager = ClipboardManager(
-            pasteboard: pasteboard, now: { clock.now }, sleep: { await clock.sleep($0) })
+            pasteboard: pasteboard, now: { clock.now }, sleep: { try await clock.sleep($0) })
     }
 
     // MARK: Writing (spec 6.1)
@@ -183,6 +190,21 @@ struct ClipboardManagerTests {
         #expect(Array(shown.dropFirst(30)) == Array((1...45).reversed()))
     }
 
+    @Test func aPasteboardTakenRightAfterOurWriteIsNeverCleared() async throws {
+        pasteboard.takenRightAfterWrite = true
+        try manager.copySecret("pw-github")
+        #expect(manager.secondsUntilClear == nil)
+        manager.clearPendingSecret()
+        await manager.waitUntilIdle()
+        #expect(pasteboard.clears == 0)
+        #expect(pasteboard.string == "notes")
+    }
+
+    /// Lets queued main-actor work run, including a countdown task cancelled before it started.
+    func settle() async {
+        for _ in 0..<10 { await Task.yield() }
+    }
+
     // MARK: Quit (spec 6.2)
 
     @Test func quitClearsAPendingSecret() async throws {
@@ -191,7 +213,8 @@ struct ClipboardManagerTests {
         #expect(pasteboard.clears == 1)
         #expect(pasteboard.string == nil)
         #expect(manager.secondsUntilClear == nil)
-        await manager.waitUntilIdle()
+        await settle()
+        #expect(manager.secondsUntilClear == nil)
         #expect(pasteboard.clears == 1)
         #expect(clock.elapsed == .zero)
     }
@@ -227,7 +250,9 @@ struct ClipboardManagerTests {
         try manager.copySecret("pw-github")
         try manager.copyUsername("octo")
         #expect(manager.secondsUntilClear == nil)
-        await manager.waitUntilIdle()
+        // The cancelled countdown task still runs once; it must not show a countdown again.
+        await settle()
+        #expect(manager.secondsUntilClear == nil)
         #expect(pasteboard.clears == 0)
         #expect(pasteboard.string == "octo")
     }
