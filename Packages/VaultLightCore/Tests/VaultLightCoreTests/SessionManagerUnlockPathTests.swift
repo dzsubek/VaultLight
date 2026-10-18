@@ -103,4 +103,28 @@ extension SessionManagerTests {
         }
         #expect(reads.withLock { $0 } == 1)
     }
+
+    /// Spec 3.4 step 5 with an error the list doesn't name: `bw status` decides, so a dead stored session is never
+    /// offered again (bw 2025.x can report a wrong key as a decryption failure).
+    @Test func aRejectedStoredSessionWithAnUnnamedErrorIsCheckedWithStatus() async throws {
+        try fake.setState("unlocked")
+        try fake.configure(["stale_session_error": "The decryption operation failed."])
+        let store = InMemorySessionStore(storedItem(key: SessionKey("stale-session-key")))
+        let manager = manager(store: store)
+        #expect(try await manager.unlockWithStoredSession(reason: "r") == .needsMasterPassword(.sessionRejected))
+        #expect(try commandLines() == ["--version", "list items", "status"])
+        #expect(await store.item == nil)
+    }
+
+    /// A list that fails while `bw` still accepts the session: the error stands and the stored session is kept.
+    @Test func aFailingListWithAValidSessionKeepsTheStoredSession() async throws {
+        try fake.setState("unlocked")
+        try fake.configure(["fail": ["list": "Something unexpected happened."]])
+        let store = InMemorySessionStore(storedItem())
+        let manager = manager(store: store)
+        await #expect(throws: BWError.self) { try await manager.unlockWithStoredSession(reason: "r") }
+        #expect(try commandLines() == ["--version", "list items", "status"])
+        #expect(await store.item != nil)
+        try await expectLocked(manager)
+    }
 }

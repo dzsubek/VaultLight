@@ -35,16 +35,16 @@ extension SessionManager {
 
     /// Folder and organization names, and the account when this run hasn't seen `bw status` yet, after search opened
     /// on the items alone. Runs first in the background loop, before the sync after unlock. A lock meanwhile makes
-    /// `withSession` throw, and nothing is applied.
+    /// the calls throw, and nothing is applied.
     func loadDetails() async {
         guard isUnlocked else { return }
         let generation = generation
         updateSyncStatus { $0.activity = .loadingDetails }
         do {
-            let names = try await withSession { try await $0.listNames(session: $1) }
+            let names = try await listNamesWithSession()
             index?.setNames(folders: names.folders, organizations: names.organizations)
             if account.email == nil {
-                let status = try await withSession { try await $0.status(session: $1) }
+                let status = try await statusWithSession()
                 account.remember(status)
                 if syncState.lastSyncedAt == nil { updateSyncStatus { $0.lastSyncedAt = status.lastSync } }
             }

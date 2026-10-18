@@ -71,22 +71,6 @@ public actor SessionManager {
 
     public var isUnlocked: Bool { session != nil }
 
-    /// What the panel, the menu and Settings show about the account (designs 06, 07, 13, 14). Starts no process.
-    public func summary() -> VaultSummary {
-        account.summary(isUnlocked: session != nil, loginCount: index?.count)
-    }
-
-    /// `bw status`, remembering the account for `summary()`.
-    public func accountStatus() async throws -> BWStatus {
-        let status = try await client.status()
-        account.remember(status)
-        return status
-    }
-
-    public func updateSettings(_ settings: SessionSettings) {
-        policy.settings = settings
-    }
-
     /// Clears the in-memory session on every event of `events` (sleep, screen lock, fast user switch).
     public func observe(_ events: AsyncStream<SystemEvent>) {
         eventTask?.cancel()
@@ -176,14 +160,9 @@ public actor SessionManager {
         let entries: [VaultEntry]
         do {
             entries = try await client.listEntries(session: key)
-        } catch BWError.locked {
-            guard !isSuperseded(since: generation) else { return try await refreshState() }
-            try await store.deleteSession()
-            return .needsMasterPassword(.sessionRejected)
-        } catch BWError.unauthenticated {
-            guard !isSuperseded(since: generation) else { return try await refreshState() }
-            try await store.deleteSession()
-            return .needsOnboarding
+        } catch {
+            if let state = try await stateAfterFailedList(error, key: key, since: generation) { return state }
+            throw error
         }
         guard !isSuperseded(since: generation) else { return try await refreshState() }
         install(key, entries: entries, storedSessionCreatedAt: read.createdAt)
@@ -301,6 +280,36 @@ extension SessionManager {
         generation != self.generation || session != nil
     }
 
+    /// Spec 3.4 step 5: whether a failed `bw list items` means the stored session no longer works. Other errors than
+    /// "locked" and "not logged in" (bw 2025.x can report a wrong key as a decryption failure) are checked with `bw
+    /// status`. Deletes the stored session and returns the state to show, or `nil` to let the error stand.
+    private func stateAfterFailedList(
+        _ error: any Error, key: SessionKey, since generation: Int
+    ) async throws -> VaultState? {
+        let state: BWStatus.State
+        switch error as? BWError {
+        case .locked: state = .locked
+        case .unauthenticated: state = .unauthenticated
+        case .timeout, .network, .notInstalled, .unsafeBinary, .tooOld: return nil
+        default:
+            guard !(error is CancellationError) else { return nil }
+            state = try await client.status(session: key).state
+        }
+        guard !isSuperseded(since: generation) else { return try await refreshState() }
+        guard state != .unlocked else { return nil }
+        try await store.deleteSession()
+        return state == .locked ? .needsMasterPassword(.sessionRejected) : .needsOnboarding
+    }
+
+    /// For the background details step: folder and organization names, and `bw status`. The key stays in this file.
+    func listNamesWithSession() async throws -> (folders: [VaultFolder], organizations: [VaultOrganization]) {
+        try await withSession { try await $0.listNames(session: $1) }
+    }
+
+    func statusWithSession() async throws -> BWStatus {
+        try await withSession { try await $0.status(session: $1) }
+    }
+
     private func rebuild(afterSyncWith session: SessionKey, generation: Int) async throws {
         try await client.sync(session: session)
         // Cleared while `bw sync` ran: never list the decrypted vault for a session that is gone.
@@ -379,7 +388,7 @@ extension SessionManager {
         if let failure { throw failure }
     }
 
-    func withSession<T: Sendable>(
+    private func withSession<T: Sendable>(
         _ body: (BWClient, SessionKey) async throws -> T
     ) async throws -> T {
         guard enforcePolicy(), let session else { throw BWError.locked }

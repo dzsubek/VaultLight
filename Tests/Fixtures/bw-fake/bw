@@ -29,6 +29,8 @@ Config keys (fake-config.json):
   require_nointeraction  default true
   initial_status    status to start from when no state file exists yet
   last_sync         lastSync to report before the first `sync` (an ISO date, or any JSON value to test parsing)
+  stale_session_error  message a command that needs an unlocked vault prints when BW_SESSION is wrong
+                    (default "Vault is locked."; bw 2025.x can say "The decryption operation failed.")
   orphan_holds_pipes  seconds: after answering, fork a child that keeps stdout/stderr open that long
                     while the fake itself exits (tests that the wrapper doesn't wait on leftovers);
                     its PID goes to fake-orphan-pid
@@ -62,6 +64,7 @@ DEFAULTS = {
     "totp_code": "492039",
     "fail": {},
     "last_sync": None,
+    "stale_session_error": "Vault is locked.",
 }
 
 GLOBAL_FLAGS = {"--nointeraction", "--raw", "--pretty", "--quiet", "--response", "--cleanexit"}
@@ -191,8 +194,10 @@ def main(argv):
     def require_unlocked():
         if state["status"] == "unauthenticated":
             fail("You are not logged in.")
-        if state["status"] != "unlocked" or not session_ok:
+        if state["status"] != "unlocked":
             fail("Vault is locked.")
+        if not session_ok:
+            fail(config["stale_session_error"])
 
     def password_from_env():
         var = flags.get("--passwordenv")
