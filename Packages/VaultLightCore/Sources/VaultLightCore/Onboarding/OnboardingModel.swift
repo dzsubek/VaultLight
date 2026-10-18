@@ -1,51 +1,6 @@
 import Foundation
 import Observation
 
-/// What onboarding needs from `bw` (spec 3.2, 7.2). `CLIOnboardingBackend` is the production type; screenshots
-/// use a demo one, and tests run the real one against the fake `bw`.
-public protocol OnboardingBackend: Sendable {
-    func configServer(_ url: URL) async throws
-    func loginPassword(email: String, password: String, twoFactor: BWTwoFactor?) async throws
-    func loginAPIKey(clientID: String, clientSecret: String) async throws
-    /// `bw status` after sign-in, for the account's email.
-    func status() async throws -> BWStatus
-    /// `bw unlock`, then the Keychain and the index (spec 3.2 steps 3–4).
-    func unlock(masterPassword: String, progress: @escaping @Sendable (UnlockProgress) -> Void) async throws
-        -> VaultState
-    func logout() async throws
-}
-
-/// Onboarding over the app's `BWClient` and `SessionManager`.
-public struct CLIOnboardingBackend: OnboardingBackend {
-    let client: BWClient
-    let session: SessionManager
-
-    public init(client: BWClient, session: SessionManager) {
-        self.client = client
-        self.session = session
-    }
-
-    public func configServer(_ url: URL) async throws { try await client.configServer(url) }
-
-    public func loginPassword(email: String, password: String, twoFactor: BWTwoFactor?) async throws {
-        try await client.loginPassword(email: email, password: password, twoFactor: twoFactor)
-    }
-
-    public func loginAPIKey(clientID: String, clientSecret: String) async throws {
-        try await client.loginAPIKey(clientID: clientID, clientSecret: clientSecret)
-    }
-
-    public func status() async throws -> BWStatus { try await session.accountStatus() }
-
-    public func unlock(masterPassword: String, progress: @escaping @Sendable (UnlockProgress) -> Void) async throws
-        -> VaultState
-    {
-        try await session.unlock(masterPassword: masterPassword, progress: progress)
-    }
-
-    public func logout() async throws { try await client.logout() }
-}
-
 /// Onboarding in the panel (spec 3.2, designs 10–12 and 16): server → sign in (email and master password, with a
 /// two-step code when asked, or a personal API key) → unlock → finishing.
 ///
@@ -71,6 +26,8 @@ public final class OnboardingModel {
 
     /// The master password, during the two-step step only.
     @ObservationIgnored private var pendingPassword: String?
+    /// Bumped whenever held secrets are dropped, so a `bw login` still running then can't start holding one.
+    @ObservationIgnored private var dropCount = 0
     @ObservationIgnored private let backend: any OnboardingBackend
 
     public init(backend: any OnboardingBackend) {
@@ -122,11 +79,16 @@ public final class OnboardingModel {
     /// The panel closed. Progress is kept (design 12 "Esc"), except the held master password: the two-step step
     /// goes back to sign-in.
     public func panelDidClose() {
-        if step == .twoFactor {
-            dropPassword()
-            step = .signIn
-        }
+        dropHeldSecrets()
         failure = nil
+    }
+
+    /// Drops the held master password, also for a first login still running: on panel close, sleep, screen lock
+    /// and user switch (spec 3.5, 9.1). The two-step step goes back to sign-in.
+    public func dropHeldSecrets() {
+        dropCount += 1
+        dropPassword()
+        if step == .twoFactor { step = .signIn }
     }
 
     public func clearFailure() {
@@ -175,10 +137,13 @@ public final class OnboardingModel {
     public func signIn(password: String) async {
         guard step == .signIn, !isBusy else { return }
         let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let drops = dropCount
         await run {
             do {
                 try await self.backend.loginPassword(email: email, password: password, twoFactor: nil)
             } catch BWError.twoFactorRequired {
+                // Dropped meanwhile (the panel closed): don't start holding the password; sign in again.
+                guard drops == self.dropCount else { return }
                 self.pendingPassword = password
                 self.twoFactorMethod = .authenticator
                 self.emailCodeSent = false
@@ -225,11 +190,13 @@ public final class OnboardingModel {
     public func sendCodeByEmail() async {
         guard step == .twoFactor, !isBusy, let password = pendingPassword else { return }
         let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let drops = dropCount
         await run {
             do {
                 try await self.backend.loginPassword(
                     email: email, password: password, twoFactor: BWTwoFactor(method: .email, code: nil))
             } catch BWError.twoFactorRequired {
+                guard drops == self.dropCount else { return }
                 self.twoFactorMethod = .email
                 self.emailCodeSent = true
                 return

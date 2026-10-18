@@ -77,6 +77,15 @@ final class PanelController {
         guard let session else { return }
         let events = SystemEvents.stream()
         tasks.append(Task { await session.observe(events) })
+        // Sleep, screen lock and user switch also drop onboarding's held master password, whatever is on screen.
+        let onboardingEvents = SystemEvents.stream()
+        tasks.append(
+            Task { [weak self] in
+                for await _ in onboardingEvents {
+                    self?.onboarding.dropHeldSecrets()
+                    if self?.panel.isVisible == true { self?.close() }
+                }
+            })
         tasks.append(
             Task { [weak self] in
                 for await _ in session.sessionCleared {

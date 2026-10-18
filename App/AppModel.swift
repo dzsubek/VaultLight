@@ -92,6 +92,7 @@ final class AppModel {
     /// Tries `shortcut`; when the system refuses it, the previous one is registered again (design 14 state 4).
     /// Returns whether the new shortcut is in use.
     func setShortcut(_ shortcut: HotKeyShortcut) -> Bool {
+        guard isLive else { return false }
         guard hotKey.register(shortcut) else {
             if !shortcutUnavailable { _ = hotKey.register(settings.settings.hotKey) }
             return false
@@ -104,6 +105,7 @@ final class AppModel {
     /// A custom `bw` path, checked against spec 7.1 before it is used; `nil` auto-detects. Returns the problem
     /// when the path is refused.
     func setBWPath(_ path: String?) async -> SetupProblem? {
+        guard isLive else { return nil }
         if let path {
             do {
                 _ = try BWLocator().locate(configuredPath: path)
@@ -112,6 +114,8 @@ final class AppModel {
                 return .notInstalled
             }
         }
+        // The unlocked session never goes to a binary the user didn't unlock with: lock first.
+        if path != settings.settings.bwPath { await session.lockNow() }
         settings.settings.bwPath = path
         await client.setConfiguredPath(path)
         await refreshBWInUse()
@@ -119,6 +123,7 @@ final class AppModel {
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
+        guard isLive else { return }
         do {
             if enabled {
                 try SMAppService.mainApp.register()
@@ -135,6 +140,7 @@ final class AppModel {
     // MARK: Commands (spec 3.5, 7.3, 8)
 
     func lockNow() {
+        guard isLive else { return }
         Task {
             await session.lockNow()
             await refreshSummary()
@@ -143,6 +149,7 @@ final class AppModel {
 
     /// "Lock and forget": `bw lock` and the stored session deleted. The menu confirms first.
     func lockAndForget() async {
+        guard isLive else { return }
         do {
             try await session.lockAndForget()
         } catch {
@@ -155,6 +162,7 @@ final class AppModel {
     /// "Sign out" (spec 3.5). Throws when `bw logout` failed: the local session is gone, but `bw` is still signed in,
     /// so onboarding can't start yet.
     func signOut() async throws {
+        guard isLive else { return }
         _ = try await session.signOut()
         onboarding.restart()
         panel.showOnboarding()
@@ -164,8 +172,14 @@ final class AppModel {
     /// A new server (spec 8): sign out first, because `bw config server` only works while logged out, then resume
     /// onboarding at sign-in. The caller confirms first.
     func changeServer(to server: ServerChoice) async throws {
+        guard isLive else { return }
         guard let url = server.url else { throw BWError.invalidArgument }
-        _ = try await session.signOut()
+        do {
+            _ = try await session.signOut()
+        } catch {
+            // The local session is gone, but `bw` is still signed in: no onboarding, server unchanged.
+            throw ServerChangeError.signOutFailed
+        }
         do {
             try await client.configServer(url)
         } catch {
@@ -181,7 +195,7 @@ final class AppModel {
     }
 
     func syncNow() async {
-        guard !isSyncing else { return }
+        guard isLive, !isSyncing else { return }
         isSyncing = true
         defer { isSyncing = false }
         do {
@@ -239,6 +253,11 @@ final class AppModel {
             }
         }
     }
+}
+
+/// Why a server change stopped before `bw config server`.
+enum ServerChangeError: Error {
+    case signOutFailed
 }
 
 /// The Settings tabs (design 14).

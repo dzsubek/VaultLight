@@ -206,6 +206,8 @@ struct VaultSettingsView: View {
         Task {
             do {
                 try await model.changeServer(to: server)
+            } catch ServerChangeError.signOutFailed {
+                signOutFailed = true
             } catch {
                 serverChangeFailed = true
             }

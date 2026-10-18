@@ -100,7 +100,11 @@
 
         /// An `AppModel` over its own defaults suite; nothing in it starts `bw` or reads the Keychain.
         private static func demoModel() -> AppModel {
-            let defaults = UserDefaults(suiteName: "com.vaultlight.demo.\(UUID().uuidString)") ?? .standard
+            // Never `.standard`: the demo must not change the user's settings. The suite is never written to, because
+            // every command is off while `isLive` is false.
+            guard let defaults = UserDefaults(suiteName: "com.vaultlight.demo.\(UUID().uuidString)") else {
+                fatalError("No UserDefaults suite for the demo")
+            }
             let model = AppModel(
                 clipboard: ClipboardManager(pasteboard: DemoPasteboard()), settings: SettingsStore(defaults: defaults))
             model.isLive = false

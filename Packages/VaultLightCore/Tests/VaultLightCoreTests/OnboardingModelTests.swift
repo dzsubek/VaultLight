@@ -181,6 +181,27 @@ struct OnboardingModelTests {
         #expect(try fake.calls().count == before)
     }
 
+    @Test func closingWhileTheFirstLoginRunsNeverHoldsThePassword() async throws {
+        try fake.configure(["two_factor_code": "123456", "delay": ["login": 1]])
+        try await atSignIn()
+        let signIn = Task { await model.signIn(password: FakeBW.Defaults.masterPassword) }
+        while !model.isBusy { await Task.yield() }
+        model.panelDidClose()
+        await signIn.value
+        #expect(!model.holdsPassword)
+        #expect(model.step == .signIn)
+    }
+
+    @Test func droppingHeldSecretsLeavesTheTwoStepStep() async throws {
+        try fake.configure(["two_factor_code": "123456"])
+        try await atSignIn()
+        await model.signIn(password: FakeBW.Defaults.masterPassword)
+        #expect(model.holdsPassword)
+        model.dropHeldSecrets()
+        #expect(!model.holdsPassword)
+        #expect(model.step == .signIn)
+    }
+
     @Test func backFromTwoStepLoginDropsThePassword() async throws {
         try fake.configure(["two_factor_code": "123456"])
         try await atSignIn()
