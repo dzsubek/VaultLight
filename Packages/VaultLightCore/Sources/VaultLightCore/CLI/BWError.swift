@@ -111,8 +111,15 @@ extension BWError {
     }
 }
 
-/// A clear-text label for any error: a `BWError`'s case name, otherwise the error's type name. Never a message
-/// or payload.
+/// A clear-text label for any error: a `BWError`'s or `SessionStoreError`'s case name (with the Keychain
+/// `OSStatus`, a public error code), otherwise the error's type name. Never a message or payload.
 public func diagnosticKind(of error: any Error) -> String {
-    (error as? BWError)?.diagnosticKind ?? String(describing: type(of: error))
+    switch error {
+    case let error as BWError: error.diagnosticKind
+    case SessionStoreError.notFound: "SessionStoreError.notFound"
+    case SessionStoreError.cancelled: "SessionStoreError.cancelled"
+    case SessionStoreError.authenticationFailed: "SessionStoreError.authenticationFailed"
+    case SessionStoreError.unavailable(let status): "SessionStoreError.unavailable(\(status))"
+    default: String(describing: type(of: error))
+    }
 }

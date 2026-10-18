@@ -79,7 +79,10 @@ struct BWErrorTests {
         #expect(BWError.unknown("secret@example.test hunter2").diagnosticKind == "unknown")
         #expect(BWError.tooOld(installed: "2024.1.0").diagnosticKind == "tooOld")
         #expect(BWError.timeout.diagnosticKind == "timeout")
-        #expect(diagnosticKind(of: SessionStoreError.cancelled) == "SessionStoreError")
+        #expect(diagnosticKind(of: SessionStoreError.cancelled) == "SessionStoreError.cancelled")
+        #expect(diagnosticKind(of: SessionStoreError.unavailable(-25308)) == "SessionStoreError.unavailable(-25308)")
+        struct OtherError: Error { let detail = "hunter2" }
+        #expect(diagnosticKind(of: OtherError()) == "OtherError")
         #expect(diagnosticKind(of: BWError.network) == "network")
     }
 
