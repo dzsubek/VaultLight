@@ -2,7 +2,7 @@ import Foundation
 
 /// The session rows of spec 8, with the spec's defaults. No secrets.
 public struct SessionSettings: Sendable, Equatable {
-    public enum StoredMaximumAge: Sendable, CaseIterable {
+    public enum StoredMaximumAge: String, Sendable, CaseIterable {
         case oneDay, sevenDays, thirtyDays
 
         public var seconds: TimeInterval {
@@ -14,7 +14,7 @@ public struct SessionSettings: Sendable, Equatable {
         }
     }
 
-    public enum InMemoryLifetime: Sendable, CaseIterable {
+    public enum InMemoryLifetime: String, Sendable, CaseIterable {
         case fifteenMinutes, oneHour, eightHours
 
         public var seconds: TimeInterval {
@@ -26,7 +26,7 @@ public struct SessionSettings: Sendable, Equatable {
         }
     }
 
-    public enum IdleLock: Sendable, CaseIterable {
+    public enum IdleLock: String, Sendable, CaseIterable {
         case off, fiveMinutes, fifteenMinutes, thirtyMinutes
 
         /// `nil` when idle locking is off.
