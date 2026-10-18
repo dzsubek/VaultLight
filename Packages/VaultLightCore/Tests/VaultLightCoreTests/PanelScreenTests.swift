@@ -58,7 +58,7 @@ import Testing
         #expect(PanelScreen(error: BWError.network) == .failure(.offline))
         #expect(PanelScreen(error: BWError.unknown("secret item name")) == .failure(.unknown))
         #expect(PanelScreen(error: SessionStoreError.unavailable(-25_300)) == .failure(.unknown))
-        #expect(PanelFailure.timedOut.message == "bw didn’t respond within 15 s")
+        #expect(PanelFailure.timedOut.message == PanelFooter.timedOut.message)
         for failure in [PanelFailure.timedOut, .offline, .unknown] {
             #expect(!failure.message.contains("secret"))
         }

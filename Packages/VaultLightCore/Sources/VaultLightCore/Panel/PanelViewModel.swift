@@ -83,6 +83,8 @@ public final class PanelViewModel {
     public var selected: SearchResult? { selectedIndex.map { results[$0] } }
     public var hasSelection: Bool { selectedIndex != nil }
     public var isTOTPAvailable: Bool { selected?.entry.hasTOTP ?? false }
+    /// A copy failed or timed out, and "Try again" (or Return) repeats it (design 16 footer).
+    public var canRetry: Bool { retryKey != nil }
 
     /// How long "Username copied" stays in the footer.
     static let usernameFooterDuration = Duration.seconds(2)
@@ -98,6 +100,8 @@ public final class PanelViewModel {
     @ObservationIgnored private var epoch = 0
     @ObservationIgnored private var isBusy = false
     @ObservationIgnored private var footerRevert: Task<Void, Never>?
+    /// The copy to repeat on "Try again". Observed, so the footer's button follows it.
+    private var retryKey: PanelKey?
 
     public init(
         vault: any PanelVault, system: any PanelSystem,
@@ -138,6 +142,7 @@ public final class PanelViewModel {
     /// A click on a row (spec 5.3).
     public func select(index: Int) {
         guard results.indices.contains(index) else { return }
+        if index != selectedIndex { dropRetry() }
         selectedIndex = index
     }
 
@@ -147,6 +152,12 @@ public final class PanelViewModel {
         return await handle(.returnKey)
     }
 
+    /// "Try again": repeats the failed copy on the selected row (spec 7.4).
+    public func retry() async -> PanelOutcome {
+        guard let retryKey else { return .stayOpen }
+        return await handle(retryKey)
+    }
+
     private func load(query newQuery: String) async {
         searchGeneration += 1
         let generation = searchGeneration
@@ -154,7 +165,10 @@ public final class PanelViewModel {
         let found = await vault.search(newQuery)
         guard generation == searchGeneration else { return }
         // Any change to the list puts the selection back on the first row (spec 5.3).
-        if found != results { selectedIndex = found.isEmpty ? nil : 0 }
+        if found != results {
+            selectedIndex = found.isEmpty ? nil : 0
+            dropRetry()
+        }
         results = found
         section =
             newQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -164,6 +178,7 @@ public final class PanelViewModel {
     // MARK: Keys (spec 5.4)
 
     public func handle(_ key: PanelKey) async -> PanelOutcome {
+        if key == .returnKey, let retryKey { return await handle(retryKey) }
         switch key {
         case .up:
             move(by: -1)
@@ -188,7 +203,9 @@ public final class PanelViewModel {
 
     private func move(by step: Int) {
         guard let current = selectedIndex else { return }
-        selectedIndex = min(max(current + step, 0), results.count - 1)
+        let next = min(max(current + step, 0), results.count - 1)
+        if next != current { dropRetry() }
+        selectedIndex = next
     }
 
     private enum Secret {
@@ -220,7 +237,11 @@ public final class PanelViewModel {
                 return .stayOpen
             }
         } catch {
-            show(footer(for: error, missing: kind == .password ? .noPassword : .noTOTP))
+            let failure = footer(for: error, missing: kind == .password ? .noPassword : .noTOTP)
+            show(failure)
+            if failure == .copyFailed || failure == .timedOut {
+                retryKey = kind == .password ? .copyPassword : .copyTOTP
+            }
             return .stayOpen
         }
         await recordCopy(id: entry.id, startedIn: startedIn)
@@ -282,7 +303,14 @@ public final class PanelViewModel {
 
     // MARK: Footer
 
+    /// The selection moved off the failed row: the error and its retry no longer apply.
+    private func dropRetry() {
+        guard retryKey != nil else { return }
+        show(.idle)
+    }
+
     private func show(_ newFooter: PanelFooter) {
+        retryKey = nil
         footerRevert?.cancel()
         footerRevert = nil
         footer = newFooter

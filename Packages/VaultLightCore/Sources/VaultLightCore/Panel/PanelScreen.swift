@@ -104,7 +104,7 @@ public enum PanelFailure: Sendable, Equatable {
 
     public var message: String {
         switch self {
-        case .timedOut: "bw didn’t respond within 15 s"
+        case .timedOut: "bw didn't respond within 15 s"
         case .offline: "Can’t reach the Bitwarden server"
         case .unknown: "Something went wrong"
         }

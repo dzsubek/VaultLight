@@ -20,7 +20,7 @@ actor FakePanelVault: PanelVault {
         self.codes = codes
     }
 
-    func fail(_ id: String, with error: BWError) { errors[id] = error }
+    func fail(_ id: String, with error: BWError?) { errors[id] = error }
     func delay(query: String, by duration: Duration) { delays[query] = duration }
 
     func search(_ query: String) async -> [SearchResult] {
