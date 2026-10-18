@@ -137,10 +137,12 @@ struct ProcessRunnerTests {
     /// process group and reports the output as incomplete. A call can't outlive its timeout or stall the queue.
     @Test func killsLeftoversThatHoldThePipesAndFlagsTheOutput() async throws {
         let fake = try FakeBW()
-        try fake.configure(["orphan_holds_pipes": 45])
+        // The leftover holds the pipes for 300 s; the call must return long before that. The bound leaves room for
+        // the fake's `python3` shim, which took ~40 s to start on a loaded CI runner (run 39162744207).
+        try fake.configure(["orphan_holds_pipes": 300])
         let start = ContinuousClock.now
         let output = try await run(fake, ["--version", "--nointeraction"], killGrace: .seconds(1))
-        #expect(ContinuousClock.now - start < .seconds(40))
+        #expect(ContinuousClock.now - start < .seconds(150))
         #expect(output.status == 0 && !output.timedOut)
         #expect(!output.outputComplete)
 
