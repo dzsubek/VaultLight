@@ -12,6 +12,8 @@ final class PanelController {
     private static let logger = Logger(subsystem: "com.vaultlight.app", category: "panel")
 
     let viewModel: PanelViewModel
+    /// Drives the footer's "Clears in" countdown (design 04).
+    let clipboard: ClipboardManager
     private(set) var content: PanelContent
     /// The search field's text. The view sends changes to the view model through `submitQuery()`.
     var queryText = ""
@@ -30,8 +32,13 @@ final class PanelController {
     @ObservationIgnored private var isAuthenticating = false
     @ObservationIgnored private var tasks: [Task<Void, Never>] = []
 
-    init(vault: any PanelVault, system: any PanelSystem, session: SessionManager?, opaqueBackground: Bool = false) {
-        viewModel = PanelViewModel(vault: vault, system: system)
+    init(
+        vault: any PanelVault, clipboard: ClipboardManager, session: SessionManager?,
+        openURL: @escaping @MainActor (URL) -> Void = { _ = NSWorkspace.shared.open($0) },
+        opaqueBackground: Bool = false
+    ) {
+        viewModel = PanelViewModel(vault: vault, system: SystemActions(clipboard: clipboard, openURL: openURL))
+        self.clipboard = clipboard
         self.session = session
         content = session == nil ? .unlocked : .checking
         panel = SearchPanel(contentSize: CGSize(width: PanelMetrics.width, height: PanelMetrics.lockedHeight))
@@ -51,9 +58,9 @@ final class PanelController {
     }
 
     /// The production wiring: a `SessionManager` over the default `BWClient` and the Keychain store.
-    static func makeProduction() -> PanelController {
+    static func makeProduction(clipboard: ClipboardManager) -> PanelController {
         let session = SessionManager(client: BWClient(), store: KeychainSessionStore())
-        return PanelController(vault: session, system: PasteboardWriter(), session: session)
+        return PanelController(vault: session, clipboard: clipboard, session: session)
     }
 
     // MARK: Open and close (spec 4.1–4.3)

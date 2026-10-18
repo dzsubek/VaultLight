@@ -1,15 +1,22 @@
 import AppKit
+import Observation
+import VaultLightCore
 
-/// The menu-bar item (spec 4).
+/// The menu-bar item (spec 4). Shows the clipboard countdown while
+/// a copied secret is pending (spec 6.2, design 04).
 @MainActor
 final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
+    private let clipboard: ClipboardManager
     private let openHandler: @MainActor () -> Void
     private let openItem: NSMenuItem
+    private var symbolName = "key.horizontal"
+    private var iconDescription = "VaultLight"
 
-    init(onOpen: @escaping @MainActor () -> Void) {
+    init(clipboard: ClipboardManager, onOpen: @escaping @MainActor () -> Void) {
+        self.clipboard = clipboard
         openHandler = onOpen
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         openItem = NSMenuItem(title: "Open VaultLight", action: #selector(openPanel), keyEquivalent: " ")
         super.init()
 
@@ -23,23 +30,41 @@ final class StatusItemController: NSObject {
         quit.target = self
         menu.addItem(quit)
         statusItem.menu = menu
-        setIcon(systemName: "key.horizontal", description: "VaultLight")
+        updateIcon()
+        observeClipboard()
     }
 
     /// Hotkey registration failed (spec 4.1): warning icon, and the menu says why.
     func showShortcutUnavailable() {
-        setIcon(systemName: "exclamationmark.triangle", description: "VaultLight, shortcut unavailable")
+        symbolName = "exclamationmark.triangle"
+        iconDescription = "VaultLight, shortcut unavailable"
+        updateIcon()
         let notice = NSMenuItem(title: "Shortcut ⌘⇧Space unavailable", action: nil, keyEquivalent: "")
         notice.isEnabled = false
         statusItem.menu?.insertItem(notice, at: 0)
         statusItem.menu?.insertItem(.separator(), at: 1)
     }
 
-    private func setIcon(systemName: String, description: String) {
-        let image = NSImage(systemSymbolName: systemName, accessibilityDescription: description)
-        image?.isTemplate = true
-        statusItem.button?.image = image
-        statusItem.button?.setAccessibilityLabel(description)
+    private func updateIcon() {
+        if let seconds = clipboard.secondsUntilClear {
+            statusItem.button?.image = MenuBarIcon.countdown(symbolName: symbolName, seconds: seconds)
+            statusItem.button?.setAccessibilityLabel("\(iconDescription), clipboard clears in \(seconds) seconds")
+        } else {
+            statusItem.button?.image = MenuBarIcon.resting(symbolName: symbolName, description: iconDescription)
+            statusItem.button?.setAccessibilityLabel(iconDescription)
+        }
+    }
+
+    /// Redraws on every change of the countdown, for as long as this controller lives.
+    private func observeClipboard() {
+        withObservationTracking {
+            _ = clipboard.secondsUntilClear
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.updateIcon()
+                self?.observeClipboard()
+            }
+        }
     }
 
     @objc private func openPanel() {

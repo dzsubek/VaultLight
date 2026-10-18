@@ -31,7 +31,9 @@ private struct UnlockedView: View {
             list
             Divider()
             PanelFooterView(
-                footer: model.footer, hasSelection: model.hasSelection, isTOTPAvailable: model.isTOTPAvailable)
+                footer: model.footer, hasSelection: model.hasSelection, isTOTPAvailable: model.isTOTPAvailable,
+                secondsUntilClear: controller.clipboard.secondsUntilClear,
+                clearAfter: controller.clipboard.clearAfter)
         }
     }
 
@@ -76,10 +78,13 @@ private struct UnlockedView: View {
                                 .frame(height: PanelMetrics.sectionHeaderHeight, alignment: .bottom)
                         }
                         ForEach(Array(model.results.enumerated()), id: \.element.id) { index, result in
-                            ResultRow(result: result, query: model.query, isSelected: index == model.selectedIndex)
-                                .id(result.id)
-                                .onTapGesture(count: 2) { Task { await controller.activate(index: index) } }
-                                .onTapGesture { controller.select(index: index) }
+                            ResultRow(
+                                result: result, query: model.query, isSelected: index == model.selectedIndex,
+                                isCopied: index == model.selectedIndex && model.footer.confirmsSecretCopy
+                            )
+                            .id(result.id)
+                            .onTapGesture(count: 2) { Task { await controller.activate(index: index) } }
+                            .onTapGesture { controller.select(index: index) }
                         }
                     }
                     .padding(.horizontal, PanelMetrics.listPadding)

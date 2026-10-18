@@ -2,11 +2,13 @@ import SwiftUI
 import VaultLightCore
 
 /// One result row (spec 5.2, design 02): monogram, name, "username · host", TOTP badge and folder or
-/// organization pill. No favicons, no network.
+/// organization pill. No favicons, no network. After a password or code copy, the selected row's ↵ chip turns
+/// into a check (design 04).
 struct ResultRow: View {
     let result: SearchResult
     let query: String
     let isSelected: Bool
+    var isCopied = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -24,7 +26,7 @@ struct ResultRow: View {
             Spacer(minLength: 8)
             if result.entry.hasTOTP { totpBadge }
             pill
-            if isSelected { returnChip }
+            if isSelected { chip }
         }
         .padding(.horizontal, 12)
         .frame(height: PanelMetrics.rowHeight)
@@ -120,13 +122,18 @@ struct ResultRow: View {
         }
     }
 
-    private var returnChip: some View {
-        Text("↵")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: 22, height: 22)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.teal))
-            .accessibilityHidden(true)
+    private var chip: some View {
+        Group {
+            if isCopied {
+                Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+            } else {
+                Text("↵").font(.system(size: 13, weight: .bold))
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(width: 22, height: 22)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.teal))
+        .accessibilityHidden(true)
     }
 
     private var accessibilityText: String {
