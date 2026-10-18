@@ -63,9 +63,11 @@ struct ProcessRunnerTests {
                 except OSError:
                     pass
             """
+        // As patient as `FakeBW.patientTimeouts`: the `python3` shim can take seconds to start on a loaded CI runner
+        // (run 39147516665 hit a 30 s timeout here). The check is about descriptors, not timing.
         let output = try await ProcessRunner.run(
             URL(fileURLWithPath: "/usr/bin/python3"), arguments: ["-c", script] + leaked.map(String.init),
-            environment: [:], timeout: .seconds(30), killGrace: .seconds(2))
+            environment: [:], timeout: .seconds(120), killGrace: .seconds(2))
         #expect(output.status == 0 && output.outputComplete)
         #expect(String(bytes: output.stdout, encoding: .utf8) == "")
     }
