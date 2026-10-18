@@ -97,7 +97,10 @@ final class PanelController {
     // MARK: Open and close (spec 4.1–4.3)
 
     func toggle() {
-        if panel.isVisible {
+        if panel.isVisible, !panel.isKeyWindow {
+            // Left open while the user fetched a two-step code in another app: bring it back, don't close it.
+            panel.makeKeyAndOrderFront(nil)
+        } else if panel.isVisible {
             close()
         } else {
             Task { await open() }
@@ -132,8 +135,15 @@ final class PanelController {
     }
 
     private func panelResignedKey() {
-        guard !isAuthenticating, panel.isVisible else { return }
+        guard !isAuthenticating, panel.isVisible, !isWaitingForTwoStepCode else { return }
         close()
+    }
+
+    /// On the two-step step the panel stays open when the user switches apps to fetch the code (spec 4.3 exception,
+    /// decided by the human 2026-10-18). The held master password still ends with the panel, sleep, screen lock or
+    /// `OnboardingModel.passwordHoldLimit`.
+    private var isWaitingForTwoStepCode: Bool {
+        content == .onboarding && onboarding.step == .twoFactor
     }
 
     /// The in-memory session was cleared (spec 3.5, 4.3). While the panel is opening, or while it shows a locked

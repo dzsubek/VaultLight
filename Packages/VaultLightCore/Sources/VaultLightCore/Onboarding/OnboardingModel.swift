@@ -28,10 +28,20 @@ public final class OnboardingModel {
     @ObservationIgnored private var pendingPassword: String?
     /// Bumped whenever held secrets are dropped, so a `bw login` still running then can't start holding one.
     @ObservationIgnored private var dropCount = 0
+    @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
+    @ObservationIgnored private var passwordExpiry: Task<Void, Never>?
     @ObservationIgnored private let backend: any OnboardingBackend
 
-    public init(backend: any OnboardingBackend) {
+    /// How long the master password may be held for the two-step step: long enough to fetch a code from another
+    /// app while the panel stays open, short enough that a forgotten panel doesn't keep it (spec 9.1).
+    public static let passwordHoldLimit = Duration.seconds(5 * 60)
+
+    public init(
+        backend: any OnboardingBackend,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.backend = backend
+        self.sleep = sleep
     }
 
     /// Whether the master password is held for the two-step step.
@@ -145,6 +155,7 @@ public final class OnboardingModel {
                 // Dropped meanwhile (the panel closed): don't start holding the password; sign in again.
                 guard drops == self.dropCount else { return }
                 self.pendingPassword = password
+                self.startPasswordExpiry()
                 self.twoFactorMethod = .authenticator
                 self.emailCodeSent = false
                 self.step = .twoFactor
@@ -280,7 +291,27 @@ public final class OnboardingModel {
         }
     }
 
+    /// Drops the held password after `passwordHoldLimit`, back at sign-in with a message.
+    private func startPasswordExpiry() {
+        passwordExpiry?.cancel()
+        let drops = dropCount
+        let sleep = sleep
+        passwordExpiry = Task { [weak self] in
+            do {
+                try await sleep(Self.passwordHoldLimit)
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled, drops == self.dropCount, self.pendingPassword != nil else { return }
+            self.passwordExpiry = nil
+            self.dropHeldSecrets()
+            self.failure = .twoFactorExpired
+        }
+    }
+
     private func dropPassword() {
+        passwordExpiry?.cancel()
+        passwordExpiry = nil
         pendingPassword = nil
         emailCodeSent = false
         twoFactorMethod = .authenticator
@@ -288,73 +319,11 @@ public final class OnboardingModel {
 }
 
 extension OnboardingModel {
-    public enum Step: Sendable, Equatable {
-        case server
-        case signIn
-        case twoFactor
-        case unlock
-        case finishing
-    }
+    /// For tests: whether a held password is waiting to expire.
+    var isPasswordExpiryPending: Bool { passwordExpiry != nil }
 
-    public enum ServerOption: Sendable, Equatable, CaseIterable {
-        case bitwardenUS
-        case bitwardenEU
-        case selfHosted
-    }
-
-    public enum Method: Sendable, Equatable {
-        case emailPassword
-        case apiKey
-    }
-
-    /// Fixed copy only (designs 16): never `bw` output, which can name the account or the server.
-    public enum Failure: Sendable, Equatable {
-        case invalidServerURL
-        case serverUnreachable
-        case wrongCredentials
-        case wrongAPIKey
-        case wrongCode
-        case wrongEmailCode
-        case wrongMasterPassword
-        case offline
-        case timedOut
-        case failed
-
-        public var message: String {
-            switch self {
-            case .invalidServerURL: "Enter the server’s full address, like https://vault.example.com."
-            case .serverUnreachable: "Can’t reach this server. Check the address and that the server is running."
-            case .wrongCredentials: "Email or master password is incorrect."
-            case .wrongAPIKey: "client_id or client_secret is incorrect."
-            case .wrongCode: "That code didn’t work. Enter the current code from your app."
-            case .wrongEmailCode: "That code didn’t work. Enter the code from the latest email."
-            case .wrongMasterPassword: "Wrong master password. Try again."
-            case .offline: "Can’t reach Bitwarden. Check your internet connection."
-            case .timedOut: "bw didn’t respond within 15 s. Try again."
-            case .failed: "That didn’t work. Try again."
-            }
-        }
-
-        /// Only the error's case decides it.
-        init(_ error: any Error) {
-            switch error as? BWError {
-            case .invalidPassword: self = .wrongCredentials
-            case .invalidAPIKey: self = .wrongAPIKey
-            case .invalidTwoFactorCode: self = .wrongCode
-            case .network: self = .offline
-            case .timeout: self = .timedOut
-            case .invalidArgument: self = .invalidServerURL
-            default: self = .failed
-            }
-        }
-    }
-
-    /// The finishing rows (design 12 state 2).
-    public struct Checklist: Sendable, Equatable {
-        public var vaultUnlocked = false
-        /// `nil` until known; `false` means Touch ID won't be offered next time.
-        public var sessionSaved: Bool?
-        public var logins: Int?
-        public var indexBuilt = false
+    /// For tests: returns once the pending expiry has run or been cancelled.
+    func waitForPasswordExpiry() async {
+        await passwordExpiry?.value
     }
 }
