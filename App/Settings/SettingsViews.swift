@@ -18,29 +18,19 @@ struct GeneralSettingsView: View {
             ) {
                 SettingsRow(title: "Clear copied secrets after") {
                     OptionPicker(
-                        selection: setting(\.clipboardTimeout), options: AppSettings.ClipboardTimeout.allCases,
-                        label: { "\($0.rawValue) seconds" })
+                        selection: model.settingBinding(\.clipboardTimeout),
+                        options: AppSettings.ClipboardTimeout.allCases, label: \.label)
                 }
             }
             SettingsSection(title: "Startup") {
                 SettingsRow(title: "Launch at login") {
-                    Toggle(
-                        "Launch at login",
+                    SettingsSwitch(
+                        title: "Launch at login",
                         isOn: Binding(
-                            get: { model.settings.settings.launchAtLogin }, set: { model.setLaunchAtLogin($0) })
-                    )
-                    .toggleStyle(.switch)
-                    .tint(Theme.teal)
-                    .labelsHidden()
+                            get: { model.settings.settings.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
                 }
             }
         }
-    }
-
-    private func setting<Value>(_ path: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
-        Binding(
-            get: { model.settings.settings[keyPath: path] },
-            set: { value in model.update { $0[keyPath: path] = value } })
     }
 }
 
@@ -56,53 +46,51 @@ struct SecuritySettingsView: View {
                     title: "Stored session lasts", subtitle: "After this, the master password is required again."
                 ) {
                     OptionPicker(
-                        selection: setting(\.session.storedMaximumAge),
+                        selection: model.settingBinding(\.session.storedMaximumAge),
                         options: SessionSettings.StoredMaximumAge.allCases, label: \.label)
                 }
                 SettingsRow(title: "Require master password after restart", divider: true) {
-                    Toggle(
-                        "Require master password after restart",
-                        isOn: setting(\.session.requireMasterPasswordAfterRestart)
-                    )
-                    .toggleStyle(.switch)
-                    .tint(Theme.teal)
-                    .labelsHidden()
+                    SettingsSwitch(
+                        title: "Require master password after restart",
+                        isOn: model.settingBinding(\.session.requireMasterPasswordAfterRestart))
                 }
             }
             SettingsSection(title: "Auto-lock", footer: "VaultLight also locks on sleep, screen lock and user switch.")
             {
                 SettingsRow(title: "Stay unlocked after Touch ID") {
                     OptionPicker(
-                        selection: setting(\.session.inMemoryLifetime),
-                        options: SessionSettings.InMemoryLifetime.allCases,
-                        label: {
-                            switch $0 {
-                            case .fifteenMinutes: "15 minutes"
-                            case .oneHour: "1 hour"
-                            case .eightHours: "8 hours"
-                            }
-                        })
+                        selection: model.settingBinding(\.session.inMemoryLifetime),
+                        options: SessionSettings.InMemoryLifetime.allCases, label: \.label)
                 }
                 SettingsRow(title: "Lock after idle", divider: true) {
                     OptionPicker(
-                        selection: setting(\.session.idleLock), options: SessionSettings.IdleLock.allCases,
-                        label: {
-                            switch $0 {
-                            case .off: "Off"
-                            case .fiveMinutes: "5 minutes"
-                            case .fifteenMinutes: "15 minutes"
-                            case .thirtyMinutes: "30 minutes"
-                            }
-                        })
+                        selection: model.settingBinding(\.session.idleLock),
+                        options: SessionSettings.IdleLock.allCases, label: \.label)
                 }
             }
         }
     }
+}
 
-    private func setting<Value>(_ path: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
+extension AppModel {
+    /// A binding to one setting; writes go through `update`, so they apply at once.
+    func settingBinding<Value>(_ path: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
         Binding(
-            get: { model.settings.settings[keyPath: path] },
-            set: { value in model.update { $0[keyPath: path] = value } })
+            get: { self.settings.settings[keyPath: path] },
+            set: { value in self.update { $0[keyPath: path] = value } })
+    }
+}
+
+/// An on/off switch in a row; the row's title is its label.
+struct SettingsSwitch: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(title, isOn: $isOn)
+            .toggleStyle(.switch)
+            .tint(Theme.teal)
+            .labelsHidden()
     }
 }
 
@@ -177,8 +165,8 @@ private struct ShortcutRow: View {
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(
-                    isError && recording ? Theme.red : recording ? Theme.teal : Theme.hairline,
-                    lineWidth: recording ? 1.5 : 1)
+                    Theme.border(failed: isError && recording, active: recording),
+                    lineWidth: Theme.borderWidth(failed: isError && recording, active: recording))
         )
         .contentShape(Rectangle())
         .onTapGesture { recording ? stopRecording() : startRecording() }
@@ -212,7 +200,8 @@ private struct ShortcutRow: View {
             return true
         }
         let shortcut = HotKeyShortcut(
-            keyCode: UInt32(event.keyCode), modifiers: Self.carbonFlags(flags), key: Self.label(for: event))
+            keyCode: UInt32(event.keyCode), modifiers: HotKeyShortcut.carbonModifiers(flags),
+            key: Self.label(for: event))
         guard shortcut.hasModifier else {
             needsModifier = true
             return true
@@ -236,15 +225,6 @@ private struct ShortcutRow: View {
             refused = .default
             startRecording()
         }
-    }
-
-    private static func carbonFlags(_ flags: NSEvent.ModifierFlags) -> UInt32 {
-        var result: UInt32 = 0
-        if flags.contains(.command) { result |= HotKeyShortcut.command }
-        if flags.contains(.shift) { result |= HotKeyShortcut.shift }
-        if flags.contains(.option) { result |= HotKeyShortcut.option }
-        if flags.contains(.control) { result |= HotKeyShortcut.control }
-        return result
     }
 
     /// Key codes: 49 Space, 36 Return, 48 Tab, 51 Delete, 123–126 arrows, F-keys by code.

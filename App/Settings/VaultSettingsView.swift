@@ -56,18 +56,8 @@ struct VaultSettingsView: View {
             SettingsSection(title: "Sync") {
                 SettingsRow(title: "Background sync") {
                     OptionPicker(
-                        selection: Binding(
-                            get: { model.settings.settings.backgroundSync },
-                            set: { value in model.update { $0.backgroundSync = value } }),
-                        options: AppSettings.SyncInterval.allCases,
-                        label: {
-                            switch $0 {
-                            case .off: "Off"
-                            case .fiveMinutes: "Every 5 minutes"
-                            case .fifteenMinutes: "Every 15 minutes"
-                            case .sixtyMinutes: "Every hour"
-                            }
-                        })
+                        selection: model.settingBinding(\.backgroundSync),
+                        options: AppSettings.SyncInterval.allCases, label: \.label)
                 }
                 SettingsRow(title: "Last synced", divider: true) {
                     HStack(spacing: 10) {

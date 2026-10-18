@@ -74,10 +74,10 @@ struct SignInStepView: View {
         }
         .stepInsets()
         .shake(attempts)
-        .onAppear { focus = model.method == .emailPassword ? (model.email.isEmpty ? .email : .password) : .clientID }
+        .onAppear { focus = firstField }
         .onChange(of: model.method) {
             model.clearFailure()
-            focus = model.method == .emailPassword ? (model.email.isEmpty ? .email : .password) : .clientID
+            focus = firstField
         }
         .onChange(of: model.failure) {
             guard model.failure != nil else { return }
@@ -87,6 +87,14 @@ struct SignInStepView: View {
             focus = model.method == .emailPassword ? .password : .clientSecret
         }
         .onChange(of: closeCount) { clearSecrets() }
+    }
+
+    /// Where typing starts: the email until one is entered, then the password; client_id for an API key.
+    private var firstField: Field {
+        switch model.method {
+        case .emailPassword: model.email.isEmpty ? .email : .password
+        case .apiKey: .clientID
+        }
     }
 
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -197,7 +205,6 @@ struct TwoFactorStepView: View {
                     Button("Send a code by email") { Task { await model.sendCodeByEmail() } }
                         .buttonStyle(.plain)
                         .foregroundStyle(Theme.teal)
-
                         .disabled(model.isBusy)
                 }
                 .font(.system(size: 13))
@@ -273,8 +280,8 @@ private struct CodeBoxes: View {
             RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.fieldFill)
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .strokeBorder(
-                    failed ? Theme.red : isCurrent ? Theme.teal : Theme.hairline,
-                    lineWidth: isCurrent || failed ? 1.5 : 1)
+                    Theme.border(failed: failed, active: isCurrent),
+                    lineWidth: Theme.borderWidth(failed: failed, active: isCurrent))
             if index < characters.count {
                 Text(String(characters[index])).font(.system(size: 22))
             } else if isCurrent {

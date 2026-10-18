@@ -72,13 +72,3 @@ struct FinishingStepView: View {
         .accessibilityElement(children: .combine)
     }
 }
-
-extension SessionSettings.StoredMaximumAge {
-    var label: String {
-        switch self {
-        case .oneDay: "1 day"
-        case .sevenDays: "7 days"
-        case .thirtyDays: "30 days"
-        }
-    }
-}

@@ -38,6 +38,16 @@ enum Theme {
     static let groupedBackground = Color(
         nsColor: dynamic(light: NSColor(white: 0.925, alpha: 1), dark: NSColor(white: 0.17, alpha: 1)))
 
+    /// The border of a field: red when failed, teal while active (focused or recording), a hairline otherwise.
+    static func border(failed: Bool, active: Bool) -> Color {
+        if failed { return red }
+        return active ? teal : hairline
+    }
+
+    static func borderWidth(failed: Bool, active: Bool) -> CGFloat {
+        failed || active ? 1.5 : 1
+    }
+
     static func dynamic(light: NSColor, dark: NSColor) -> NSColor {
         NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light

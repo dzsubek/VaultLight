@@ -92,8 +92,9 @@ struct AboutView: View {
     }
 
     private var cliLine: String {
-        let server = ServerChoice(serverURL: model.summary.serverURL).displayName
         guard let version = model.bwInUse?.version else { return "bw not found" }
-        return "bw \(version) · \(model.summary.serverURL == nil ? model.settings.settings.server.displayName : server)"
+        // The server `bw` reports; without one, the configured server.
+        let server = model.summary.serverURL.map { ServerChoice(serverURL: $0) } ?? model.settings.settings.server
+        return "bw \(version) · \(server.displayName)"
     }
 }

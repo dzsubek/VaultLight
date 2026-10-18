@@ -58,7 +58,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let open = item("Open VaultLight", #selector(openPanel), target: target)
         if !model.shortcutUnavailable {
             open.keyEquivalent = shortcut.key == "Space" ? " " : shortcut.key.lowercased()
-            open.keyEquivalentModifierMask = modifierFlags(shortcut)
+            open.keyEquivalentModifierMask = shortcut.appKitModifiers
         }
         items.append(open)
         items.append(.separator())
@@ -99,15 +99,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.isEnabled = false
         item.setAccessibilityLabel([title, detail].compactMap(\.self).joined(separator: ", "))
         return item
-    }
-
-    private static func modifierFlags(_ shortcut: HotKeyShortcut) -> NSEvent.ModifierFlags {
-        var flags: NSEvent.ModifierFlags = []
-        if shortcut.modifiers & HotKeyShortcut.command != 0 { flags.insert(.command) }
-        if shortcut.modifiers & HotKeyShortcut.shift != 0 { flags.insert(.shift) }
-        if shortcut.modifiers & HotKeyShortcut.option != 0 { flags.insert(.option) }
-        if shortcut.modifiers & HotKeyShortcut.control != 0 { flags.insert(.control) }
-        return flags
     }
 
     // MARK: Icon

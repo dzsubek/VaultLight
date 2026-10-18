@@ -190,8 +190,8 @@ struct FieldBox: ViewModifier {
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(
-                        failed ? Theme.red : focused ? Theme.teal : Theme.hairline,
-                        lineWidth: focused || failed ? 1.5 : 1)
+                        Theme.border(failed: failed, active: focused),
+                        lineWidth: Theme.borderWidth(failed: failed, active: focused))
             )
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)

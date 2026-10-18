@@ -1,3 +1,4 @@
+import AppKit
 import Carbon.HIToolbox
 import VaultLightCore
 
@@ -62,4 +63,20 @@ private func hotKeyHandler(
     let hotKey = Unmanaged<HotKey>.fromOpaque(context).takeUnretainedValue()
     Task { @MainActor in hotKey.fire() }
     return noErr
+}
+
+/// Carbon modifier bits and the AppKit flags they stand for: the recorder reads key events, the menu shows the
+/// shortcut as a key equivalent.
+extension HotKeyShortcut {
+    private static let modifierPairs: [(carbon: UInt32, appKit: NSEvent.ModifierFlags)] = [
+        (command, .command), (shift, .shift), (option, .option), (control, .control),
+    ]
+
+    static func carbonModifiers(_ flags: NSEvent.ModifierFlags) -> UInt32 {
+        modifierPairs.filter { flags.contains($0.appKit) }.reduce(0) { $0 | $1.carbon }
+    }
+
+    var appKitModifiers: NSEvent.ModifierFlags {
+        NSEvent.ModifierFlags(Self.modifierPairs.filter { modifiers & $0.carbon != 0 }.map(\.appKit))
+    }
 }
