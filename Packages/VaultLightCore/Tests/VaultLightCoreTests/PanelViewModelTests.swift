@@ -86,10 +86,11 @@ struct PanelViewModelTests {
     /// `bw get password` takes seconds: the footer says so until the copy lands.
     @Test func theFooterSaysAPasswordIsBeingFetched() async throws {
         await typeGit()
-        await vault.delaySecrets(by: .milliseconds(300))
+        await vault.holdSecrets()
         let copy = Task { await model.handle(.returnKey) }
-        try await Task.sleep(for: .milliseconds(100))
+        while await vault.passwordCalls.isEmpty { await Task.yield() }
         #expect(model.footer == .gettingPassword)
+        await vault.releaseSecrets()
         #expect(await copy.value == .close)
         #expect(model.footer == .passwordCopied)
     }

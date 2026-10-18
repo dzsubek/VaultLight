@@ -23,8 +23,15 @@ actor FakePanelVault: PanelVault {
 
     func fail(_ id: String, with error: BWError?) { errors[id] = error }
     func delay(query: String, by duration: Duration) { delays[query] = duration }
-    private var secretDelay: Duration?
-    func delaySecrets(by duration: Duration) { secretDelay = duration }
+    /// While held, `password(for:)` waits until `releaseSecrets()`, so a test can look at the panel mid-fetch.
+    private var isHoldingSecrets = false
+    private var heldSecrets: [CheckedContinuation<Void, Never>] = []
+    func holdSecrets() { isHoldingSecrets = true }
+    func releaseSecrets() {
+        isHoldingSecrets = false
+        heldSecrets.forEach { $0.resume() }
+        heldSecrets = []
+    }
 
     func search(_ query: String) async -> [SearchResult] {
         let results = index.search(query)
@@ -39,7 +46,7 @@ actor FakePanelVault: PanelVault {
 
     func password(for id: String) async throws -> String {
         passwordCalls.append(id)
-        if let secretDelay { try? await Task.sleep(for: secretDelay) }
+        if isHoldingSecrets { await withCheckedContinuation { heldSecrets.append($0) } }
         if let error = errors[id] { throw error }
         guard let value = passwords[id] else { throw BWError.noValue }
         return value
