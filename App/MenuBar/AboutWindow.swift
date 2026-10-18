@@ -43,9 +43,8 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppMark(size: 80)
-                .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
-                .padding(.top, 38)
+            AppMark(size: 76)
+                .padding(.top, 24)
             Text("VaultLight")
                 .font(.system(size: 17, weight: .bold))
                 .padding(.top, 14)

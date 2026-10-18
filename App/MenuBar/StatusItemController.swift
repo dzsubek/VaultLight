@@ -41,7 +41,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     static func items(model: AppModel, target: StatusItemController?) -> [NSMenuItem] {
-        let status = MenuStatus(state: model.lastState, summary: model.summary, now: Date())
+        let status = MenuStatus(
+            state: model.lastState, summary: model.summary, lastSyncedAt: model.lastSyncedAt, now: Date())
         let shortcut = model.settings.settings.hotKey
         var items: [NSMenuItem] = []
         if model.shortcutUnavailable {

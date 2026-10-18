@@ -24,7 +24,7 @@ struct KeyHint: View {
     var body: some View {
         HStack(spacing: 6) {
             KeyChip(key: key)
-            if let label { Text(label).font(.system(size: 13)) }
+            if let label { Text(label).font(.system(size: 13)).lineLimit(1).fixedSize() }
         }
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .ignore)
@@ -64,6 +64,7 @@ struct FooterBar<Trailing: View>: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            .layoutPriority(-1)
             .accessibilityElement(children: .combine)
             Spacer(minLength: 12)
             HStack(spacing: 14) { trailing }
@@ -192,7 +193,11 @@ struct FieldBox: ViewModifier {
                         failed ? Theme.red : focused ? Theme.teal : Theme.hairline,
                         lineWidth: focused || failed ? 1.5 : 1)
             )
-            .shadow(color: (failed ? Theme.red : Theme.teal).opacity(focused || failed ? 0.18 : 0), radius: 3)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke((failed ? Theme.red : Theme.teal).opacity(focused || failed ? 0.22 : 0), lineWidth: 3)
+                    .padding(-1.5)
+            )
     }
 }
 

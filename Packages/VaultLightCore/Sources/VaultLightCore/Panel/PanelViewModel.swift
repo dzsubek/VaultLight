@@ -63,7 +63,7 @@ public enum PanelFooter: Sendable, Equatable {
         case .noURL: "No website for this item"
         case .copyFailed: "Copy failed · clipboard unchanged"
         case .clipboardWriteFailed: "Copy failed"
-        case .timedOut: "bw didn't respond within 15 s"
+        case .timedOut: "bw didn’t respond within 15 s"
         case .locked: "Vault is locked"
         }
     }

@@ -10,10 +10,12 @@ public struct MenuStatus: Sendable, Equatable {
 
     /// `state` is the last state the panel showed, `nil` before the first check. A session that is still unlocked
     /// wins over it.
-    public init(state: VaultState?, summary: VaultSummary, now: Date) {
+    public init(state: VaultState?, summary: VaultSummary, lastSyncedAt: Date? = nil, now: Date) {
         if summary.isUnlocked {
             title = "Unlocked"
-            detail = summary.email
+            let synced = lastSyncedAt.map { "synced \(RelativeTime.ago(now.timeIntervalSince($0)))" }
+            let parts = [summary.email, synced].compactMap(\.self)
+            detail = parts.isEmpty ? nil : parts.joined(separator: " · ")
             canSync = true
             canLock = true
             return

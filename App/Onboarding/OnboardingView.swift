@@ -218,7 +218,7 @@ private struct ServerStepView: View {
             }
         }
         .padding(.horizontal, 13)
-        .padding(.vertical, 9)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous).fill(selected ? Theme.tintedRowFill : .clear)
         )

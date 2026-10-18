@@ -19,7 +19,7 @@ struct PanelFooterView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            status
+            status.layoutPriority(-1)
             Spacer(minLength: 12)
             if footer.confirmsSecretCopy, let secondsUntilClear {
                 countdown(secondsUntilClear)
@@ -42,9 +42,10 @@ struct PanelFooterView: View {
             HStack(spacing: 8) {
                 indicator
                 Text(message)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                 if let onRetry {
                     Button("Try again", action: onRetry)
                         .buttonStyle(CompactButtonStyle())

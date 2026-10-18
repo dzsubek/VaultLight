@@ -9,7 +9,7 @@ struct FinishingStepView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             StepHeading(title: "Getting your vault ready", subtitle: "This takes a few seconds the first time.")
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 let checklist = model.checklist
                 let states = rowStates(checklist)
                 row("Signed in", detail: model.configuredServer?.displayName, state: .done)

@@ -15,8 +15,14 @@ enum Theme {
         nsColor: dynamic(
             light: NSColor(srgbRed: 0.0, green: 0.51, blue: 0.56, alpha: 0.13),
             dark: NSColor(srgbRed: 0.25, green: 0.78, blue: 0.82, alpha: 0.18)))
-    static let amber = Color(nsColor: .systemOrange)
-    static let red = Color(nsColor: .systemRed)
+    static let amber = Color(
+        nsColor: dynamic(
+            light: NSColor(srgbRed: 0.70, green: 0.38, blue: 0.0, alpha: 1),
+            dark: NSColor(srgbRed: 0.96, green: 0.65, blue: 0.25, alpha: 1)))
+    static let red = Color(
+        nsColor: dynamic(
+            light: NSColor(srgbRed: 0.78, green: 0.13, blue: 0.18, alpha: 1),
+            dark: NSColor(srgbRed: 0.90, green: 0.45, blue: 0.43, alpha: 1)))
     static let chipFill = Color.primary.opacity(0.07)
     /// Text fields and secondary buttons: white in light mode, a lifted gray in dark mode.
     static let fieldFill = Color(

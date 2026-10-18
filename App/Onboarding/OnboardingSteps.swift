@@ -197,7 +197,7 @@ struct TwoFactorStepView: View {
                     Button("Send a code by email") { Task { await model.sendCodeByEmail() } }
                         .buttonStyle(.plain)
                         .foregroundStyle(Theme.teal)
-                        .fontWeight(.medium)
+
                         .disabled(model.isBusy)
                 }
                 .font(.system(size: 13))

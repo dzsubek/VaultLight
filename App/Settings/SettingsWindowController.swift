@@ -70,7 +70,7 @@ extension SettingsTab {
         switch self {
         case .general: "slider.horizontal.3"
         case .security: "lock"
-        case .vault: "externaldrive.connected.to.line.below"
+        case .vault: "server.rack"
         }
     }
 }

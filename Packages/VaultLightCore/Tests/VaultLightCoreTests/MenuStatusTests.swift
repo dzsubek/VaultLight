@@ -16,6 +16,22 @@ import Testing
         #expect(status.canLock)
     }
 
+    @Test func unlockedShowsHowLongAgoTheLastSyncWas() {
+        let summary = VaultSummary(isUnlocked: true, email: "tester@example.com")
+        let status = MenuStatus(
+            state: .unlocked, summary: summary, lastSyncedAt: now.addingTimeInterval(-185), now: now)
+        #expect(status.detail == "tester@example.com · synced 3 min ago")
+        let fresh = MenuStatus(state: .unlocked, summary: VaultSummary(isUnlocked: true), lastSyncedAt: now, now: now)
+        #expect(fresh.detail == "synced just now")
+    }
+
+    @Test func shortAgesForStatusLines() {
+        #expect(RelativeTime.ago(30) == "just now")
+        #expect(RelativeTime.ago(185) == "3 min ago")
+        #expect(RelativeTime.ago(2 * 3_600 + 60) == "2 h ago")
+        #expect(RelativeTime.ago(3 * 86_400) == "3 d ago")
+    }
+
     @Test func aStillUnlockedSessionWinsOverAnOldState() {
         let status = MenuStatus(
             state: .needsMasterPassword(.noStoredSession), summary: VaultSummary(isUnlocked: true), now: now)

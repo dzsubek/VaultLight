@@ -363,7 +363,7 @@ extension OnboardingModel {
             case .wrongEmailCode: "That code didn’t work. Enter the code from the latest email."
             case .wrongMasterPassword: "Wrong master password. Try again."
             case .offline: "Can’t reach Bitwarden. Check your internet connection."
-            case .timedOut: "bw didn't respond within 15 s. Try again."
+            case .timedOut: "bw didn’t respond within 15 s. Try again."
             case .failed: "That didn’t work. Try again."
             }
         }

@@ -216,8 +216,7 @@ struct VaultSettingsView: View {
 
     private var lastSynced: String {
         guard let date = model.lastSyncedAt else { return "Not this session" }
-        let seconds = Date().timeIntervalSince(date)
-        return seconds < 60 ? "Just now" : "\(RelativeTime.duration(seconds)) ago"
+        return RelativeTime.ago(Date().timeIntervalSince(date))
     }
 
     private var locationSelection: Binding<Location> {

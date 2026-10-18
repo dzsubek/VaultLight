@@ -108,7 +108,10 @@
         }
 
         private static let menuStates: [(@MainActor (AppModel) -> Void, String)] = [
-            ({ $0.setDemoState(.unlocked, summary: unlockedSummary) }, "13-menubar-menu-unlocked"),
+            (
+                { $0.setDemoState(.unlocked, summary: unlockedSummary, lastSyncedAt: Date().addingTimeInterval(-185)) },
+                "13-menubar-menu-unlocked"
+            ),
             (
                 {
                     $0.setDemoState(

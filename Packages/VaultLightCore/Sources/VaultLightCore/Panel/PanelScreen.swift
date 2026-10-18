@@ -104,7 +104,7 @@ public enum PanelFailure: Sendable, Equatable {
 
     public var message: String {
         switch self {
-        case .timedOut: "bw didn't respond within 15 s"
+        case .timedOut: "bw didn’t respond within 15 s"
         case .offline: "Can’t reach the Bitwarden server"
         case .unknown: "Something went wrong"
         }
@@ -155,5 +155,15 @@ public enum RelativeTime {
             return "\(count) \(name)\(count == 1 ? "" : "s")"
         }
         return "1 minute"
+    }
+
+    /// Abbreviated, for "synced 3 min ago" (design 13, 14).
+    public static func ago(_ seconds: TimeInterval) -> String {
+        switch seconds {
+        case ..<60: "just now"
+        case ..<3_600: "\(Int(seconds / 60)) min ago"
+        case ..<86_400: "\(Int(seconds / 3_600)) h ago"
+        default: "\(Int(seconds / 86_400)) d ago"
+        }
     }
 }

@@ -123,7 +123,7 @@ private struct MasterPasswordView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 23)
                     .accessibilityHidden(true)
-                SecureField("Master password", text: $password)
+                SecureField("", text: $password, prompt: Text("Master password").foregroundStyle(.tertiary))
                     .textFieldStyle(.plain)
                     .font(.system(size: 22))
                     .tint(Theme.teal)
@@ -230,7 +230,7 @@ private struct SetupProblemView: View {
             Spacer()
             Button(action: onCopy) {
                 HStack(spacing: 5) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 11))
+                    Image(systemName: copied ? "checkmark" : "square.on.square").font(.system(size: 11))
                     Text(copied ? "Copied" : "Copy")
                 }
                 .font(.system(size: 13, weight: .medium))

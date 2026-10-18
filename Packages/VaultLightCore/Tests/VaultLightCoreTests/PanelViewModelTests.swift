@@ -214,7 +214,7 @@ struct PanelViewModelTests {
         await typeGit()
         #expect(await model.handle(.copyPassword) == .stayOpen)
         #expect(model.footer == .timedOut)
-        #expect(model.footer.message == "bw didn't respond within 15 s")
+        #expect(model.footer.message == "bw didn’t respond within 15 s")
     }
 
     @Test func unknownErrorTextNeverReachesTheFooter() async {
