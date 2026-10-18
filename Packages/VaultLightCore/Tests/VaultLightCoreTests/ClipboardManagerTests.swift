@@ -88,22 +88,29 @@ struct ClipboardManagerTests {
             pasteboard: pasteboard, now: { clock.now }, sleep: { try await clock.sleep($0) })
     }
 
+    /// Lets queued main-actor work run, including a countdown task cancelled before it started.
+    func settle() async {
+        for _ in 0..<10 { await Task.yield() }
+    }
+
+    /// The pasteboard holds `value` for this Mac only, as one item carrying both markers.
+    func expectWrittenAsOneConcealedTransientItem(_ value: String) {
+        #expect(pasteboard.preparedOptions == [.currentHostOnly])
+        #expect(pasteboard.itemCount == 1)
+        #expect(pasteboard.types.isSuperset(of: [.string, Self.concealed, Self.transient]))
+        #expect(pasteboard.string == value)
+    }
+
     // MARK: Writing (spec 6.1)
 
     @Test func secretIsWrittenForThisMacOnlyAsOneConcealedTransientItem() throws {
         try manager.copySecret("pw-github")
-        #expect(pasteboard.preparedOptions == [.currentHostOnly])
-        #expect(pasteboard.itemCount == 1)
-        #expect(pasteboard.types.isSuperset(of: [.string, Self.concealed, Self.transient]))
-        #expect(pasteboard.string == "pw-github")
+        expectWrittenAsOneConcealedTransientItem("pw-github")
     }
 
     @Test func usernameIsWrittenTheSameWay() throws {
         try manager.copyUsername("octo")
-        #expect(pasteboard.preparedOptions == [.currentHostOnly])
-        #expect(pasteboard.itemCount == 1)
-        #expect(pasteboard.types.isSuperset(of: [.string, Self.concealed, Self.transient]))
-        #expect(pasteboard.string == "octo")
+        expectWrittenAsOneConcealedTransientItem("octo")
     }
 
     @Test func failedWriteThrowsLeavesNothingBehindAndStartsNoCountdown() async {
@@ -198,11 +205,6 @@ struct ClipboardManagerTests {
         await manager.waitUntilIdle()
         #expect(pasteboard.clears == 0)
         #expect(pasteboard.string == "notes")
-    }
-
-    /// Lets queued main-actor work run, including a countdown task cancelled before it started.
-    func settle() async {
-        for _ in 0..<10 { await Task.yield() }
     }
 
     // MARK: Quit (spec 6.2)

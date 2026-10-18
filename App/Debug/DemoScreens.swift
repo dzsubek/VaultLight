@@ -64,9 +64,9 @@
             let image = MenuBarIcon.countdown(symbolName: "key.horizontal", seconds: 45)
             let icon = NSImageView(image: image)
             icon.contentTintColor = .labelColor
-            icon.frame = NSRect(
-                x: 1040 - 260 - image.size.width, y: (52 - image.size.height) / 2, width: image.size.width,
-                height: image.size.height)
+            let origin = NSPoint(
+                x: strip.bounds.width - 260 - image.size.width, y: (strip.bounds.height - image.size.height) / 2)
+            icon.frame = NSRect(origin: origin, size: image.size)
             strip.addSubview(icon)
             // A window gives the views an effective appearance; it is never shown.
             let window = NSWindow(
@@ -88,28 +88,26 @@
                 }
                 await controller.open()
             case .results:
-                await controller.open()
-                controller.queryText = "git"
-                await controller.submitQuery()
+                await search(controller, for: "git")
                 await controller.perform(.down)
             case .usernameCopied:
-                await controller.open()
-                controller.queryText = "git"
-                await controller.submitQuery()
+                await search(controller, for: "git")
                 await controller.perform(.down)
                 await controller.perform(.copyUsername)
             case .passwordCopied:
-                // Through the view model, not `perform`, so the panel stays on screen for the capture.
-                await controller.open()
-                controller.queryText = "git"
-                await controller.submitQuery()
+                await search(controller, for: "git")
                 await controller.perform(.down)
+                // Through the view model, not `perform`, so the panel stays on screen for the capture.
                 _ = await controller.viewModel.handle(.returnKey)
             case .noResults:
-                await controller.open()
-                controller.queryText = "kubernetes"
-                await controller.submitQuery()
+                await search(controller, for: "kubernetes")
             }
+        }
+
+        private static func search(_ controller: PanelController, for query: String) async {
+            await controller.open()
+            controller.queryText = query
+            await controller.submitQuery()
         }
 
         private static func png(of panel: NSPanel) -> Data? {

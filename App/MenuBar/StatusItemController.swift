@@ -46,12 +46,13 @@ final class StatusItemController: NSObject {
     }
 
     private func updateIcon() {
+        guard let button = statusItem.button else { return }
         if let seconds = clipboard.secondsUntilClear {
-            statusItem.button?.image = MenuBarIcon.countdown(symbolName: symbolName, seconds: seconds)
-            statusItem.button?.setAccessibilityLabel("\(iconDescription), clipboard clears in \(seconds) seconds")
+            button.image = MenuBarIcon.countdown(symbolName: symbolName, seconds: seconds)
+            button.setAccessibilityLabel("\(iconDescription), clipboard clears in \(seconds) seconds")
         } else {
-            statusItem.button?.image = MenuBarIcon.resting(symbolName: symbolName, description: iconDescription)
-            statusItem.button?.setAccessibilityLabel(iconDescription)
+            button.image = MenuBarIcon.resting(symbolName: symbolName, description: iconDescription)
+            button.setAccessibilityLabel(iconDescription)
         }
     }
 
