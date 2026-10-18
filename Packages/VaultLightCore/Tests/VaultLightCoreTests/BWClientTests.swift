@@ -130,6 +130,19 @@ struct BWClientTests {
         }
     }
 
+    /// Foundation's `Process` decomposes environment values and arguments (ő → o + U+030B), which turns a correct
+    /// non-ASCII master password into a wrong one. The bytes must reach `bw` exactly as given.
+    @Test(arguments: [
+        "jelsz\u{00F3}-\u{0151}r\u{00FC}lt-\u{0171}z",  // precomposed (NFC), as typed or pasted
+        "jelszo\u{0301}-o\u{030B}",  // decomposed (NFD): must not be recomposed either
+    ])
+    func nonASCIIMasterPasswordReachesBWUnchanged(password: String) async throws {
+        let fake = try FakeBW()
+        try fake.configure(["master_password": password])
+        try fake.setState("locked")
+        #expect(try await fake.client().unlock(password: password) == FakeBW.session)
+    }
+
     @Test func unlockReturnsTheSessionKey() async throws {
         let fake = try FakeBW()
         try fake.setState("locked")

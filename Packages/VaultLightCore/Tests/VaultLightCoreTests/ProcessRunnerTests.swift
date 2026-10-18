@@ -47,6 +47,40 @@ struct ProcessRunnerTests {
         #expect(output.stdout == content)
     }
 
+    /// Only 0, 1 and 2 reach the child, even when the parent holds another descriptor open without close-on-exec.
+    @Test func childInheritsOnlyStdinStdoutAndStderr() async throws {
+        var leaked = [Int32](repeating: -1, count: 2)
+        #expect(pipe(&leaked) == 0)
+        defer { leaked.forEach { close($0) } }
+        let script = "import os\nfor fd in range(3, 64):\n try:\n  os.fstat(fd); print(fd)\n except OSError: pass"
+        let output = try await ProcessRunner.run(
+            URL(fileURLWithPath: "/usr/bin/python3"), arguments: ["-c", script], environment: [:],
+            timeout: .seconds(30), killGrace: .seconds(2))
+        #expect(output.status == 0 && output.outputComplete)
+        #expect(String(bytes: output.stdout, encoding: .utf8) == "")
+    }
+
+    /// Arguments, like environment values, reach the child scalar for scalar, precomposed or decomposed.
+    @Test(arguments: [
+        "t\u{00E9}ster-\u{0151}@example.com",  // precomposed (NFC)
+        "te\u{0301}ster-o\u{030B}@example.com",  // decomposed (NFD)
+    ])
+    func nonASCIIArgumentReachesTheChildUnchanged(argument: String) async throws {
+        let fake = try FakeBW()
+        _ = try await run(fake, ["status", argument, "--nointeraction"])
+        let received = try fake.lastArguments()
+        #expect(received.count == 3)
+        #expect(Array(received[1].unicodeScalars) == Array(argument.unicodeScalars))
+    }
+
+    @Test func failedSpawnThrows() async throws {
+        await #expect(throws: (any Error).self) {
+            try await ProcessRunner.run(
+                URL(fileURLWithPath: "/nonexistent/bw"), arguments: [], environment: [:], timeout: .seconds(5),
+                killGrace: .seconds(1))
+        }
+    }
+
     /// SIGTERM alone ends it: the status would be SIGKILL if escalation had been needed. The call returns within
     /// timeout + grace for draining, long before the fake's 30 s sleep would end.
     @Test func timeoutSendsSIGTERM() async throws {
