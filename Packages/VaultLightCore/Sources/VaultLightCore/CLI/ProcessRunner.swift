@@ -49,9 +49,10 @@ enum ProcessRunner {
         let stdoutReader = PipeReader(FileHandle(fileDescriptor: child.stdoutFD, closeOnDealloc: true))
         let stderrReader = PipeReader(FileHandle(fileDescriptor: child.stderrFD, closeOnDealloc: true))
 
-        // Set when the child has exited, before it is reaped, so the watchdog never signals a reaped PID that
-        // another process may have reused: until the reap the zombie keeps the PID, and after the flag is set
-        // nothing signals it any more.
+        // Set once the child has exited, before anything is reaped. The zombie keeps the PID (and so the process
+        // group ID) reserved until `run` reaps it, which happens after the last signal this call sends. The
+        // watchdog signals only while the flag is false, and `run` sets it before reaping, so no signal is ever
+        // sent to a PID that has been reaped and might have been reused.
         let exited = OSAllocatedUnfairLock(initialState: false)
         let (exits, exitContinuation) = AsyncStream.makeStream(of: Exit.self)
         waitForExit(pid: pid, exited: exited, continuation: exitContinuation)
@@ -68,12 +69,18 @@ enum ProcessRunner {
         let stderrData = await stderr
         drainDeadline.cancel()
         // Anything the child started still holds the call's secret in its environment, whether or not it kept the
-        // pipes: kill what is left of the group. The group ID can't be reused while a member lives; if it's empty,
-        // this fails with ESRCH. A process that left the group is out of reach, but if it holds the pipes the
+        // pipes: kill what is left of the group. The child is still an unreaped zombie here, so its PID and
+        // process group ID are reserved and this can't hit an unrelated process; if the group is otherwise empty
+        // it fails with ESRCH. A process that left the group is out of reach, but if it holds the pipes the
         // output is marked incomplete and the call fails.
+        let timedOut = await watchdog.value
+        exited.withLock { $0 = true }
         killpg(pid, SIGKILL)
+        // Reap last, exactly once. After the SIGKILL above (or the exit seen by the wait thread) this is prompt.
+        var status: Int32 = 0
+        while waitpid(pid, &status, 0) == -1 && errno == EINTR {}
         return ProcessOutput(
-            status: exit.status, terminatedBySignal: exit.bySignal, timedOut: await watchdog.value,
+            status: exit.status, terminatedBySignal: exit.bySignal, timedOut: timedOut,
             stdout: stdoutData, stderr: stderrData, outputComplete: stdoutReader.reachedEnd && stderrReader.reachedEnd)
     }
 
@@ -88,8 +95,14 @@ enum ProcessRunner {
         let argv = [executable] + arguments
         let envp = environment.map { "\($0.key)=\($0.value)" }
         guard (argv + envp).allSatisfy({ !$0.utf8.contains(0) }) else { throw SpawnError(code: EINVAL) }
-        let cArguments: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) } + [nil]
-        let cEnvironment: [UnsafeMutablePointer<CChar>?] = envp.map { strdup($0) } + [nil]
+        let cArguments = try makeCStrings(argv)
+        let cEnvironment: [UnsafeMutablePointer<CChar>?]
+        do {
+            cEnvironment = try makeCStrings(envp)
+        } catch {
+            wipeAndFree(cArguments)
+            throw error
+        }
         var stdoutPipe: [Int32] = [-1, -1]
         var stderrPipe: [Int32] = [-1, -1]
         var fileActions: posix_spawn_file_actions_t?
@@ -97,7 +110,8 @@ enum ProcessRunner {
         var fileActionsReady = false
         var attributesReady = false
         defer {
-            for pointer in cArguments + cEnvironment { free(pointer) }
+            wipeAndFree(cArguments)
+            wipeAndFree(cEnvironment)
             if fileActionsReady { posix_spawn_file_actions_destroy(&fileActions) }
             if attributesReady { posix_spawnattr_destroy(&attributes) }
             // The child has its own copies; the parent keeps only the read ends, and only on success (see below).
@@ -136,6 +150,30 @@ enum ProcessRunner {
         }
     }
 
+    /// NUL-terminated copies of the strings' own UTF-8 bytes, plus the trailing nil `posix_spawn` expects. If any
+    /// allocation fails, the copies made so far are wiped and freed and this throws, rather than returning a
+    /// shortened array.
+    private static func makeCStrings(_ strings: [String]) throws -> [UnsafeMutablePointer<CChar>?] {
+        var pointers: [UnsafeMutablePointer<CChar>?] = []
+        for string in strings {
+            guard let copy = strdup(string) else {
+                wipeAndFree(pointers)
+                throw SpawnError(code: ENOMEM)
+            }
+            pointers.append(copy)
+        }
+        return pointers + [nil]
+    }
+
+    /// The buffers hold secrets (the master password, session key), so they are zeroed before they are freed.
+    private static func wipeAndFree(_ pointers: [UnsafeMutablePointer<CChar>?]) {
+        for case let pointer? in pointers {
+            let size = strlen(pointer) + 1
+            memset_s(pointer, size, 0, size)
+            free(pointer)
+        }
+    }
+
     /// Process group of its own, empty signal mask, default dispositions for the signals a parent may ignore, and
     /// every descriptor not named by a file action closed in the child.
     private static func configure(_ attributes: inout posix_spawnattr_t?) throws {
@@ -158,37 +196,26 @@ enum ProcessRunner {
 
     // MARK: - Exit
 
-    /// Waits for the child on a dedicated thread (a blocking wait must not take a cooperative-pool thread). It first
-    /// waits for the exit without reaping (`WNOWAIT`), then sets `exited`, and only then reaps with `waitpid`, so
-    /// the PID stays reserved by the zombie for as long as the watchdog may still signal it.
+    /// Waits for the child on a dedicated thread (a blocking wait must not take a cooperative-pool thread). It
+    /// waits for the exit without reaping (`WNOWAIT`), sets `exited`, and reports how the child ended, from the
+    /// `siginfo_t`. The child stays a zombie, and so keeps its PID, until `run` reaps it after its final `killpg`.
     private static func waitForExit(
         pid: pid_t, exited: OSAllocatedUnfairLock<Bool>, continuation: AsyncStream<Exit>.Continuation
     ) {
         let thread = Thread {
             var info = siginfo_t()
-            while waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT) != 0 && errno == EINTR {}
+            var result = waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT)
+            while result != 0 && errno == EINTR { result = waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT) }
             exited.withLock { $0 = true }
-            var status: Int32 = 0
-            var result = waitpid(pid, &status, 0)
-            while result == -1 && errno == EINTR { result = waitpid(pid, &status, 0) }
-            if result == pid {
-                continuation.yield(Exit(status: exitStatus(status), bySignal: wasSignaled(status)))
+            if result == 0 {
+                // si_status is the exit status for CLD_EXITED and the signal number for CLD_KILLED / CLD_DUMPED.
+                let bySignal = info.si_code == CLD_KILLED || info.si_code == CLD_DUMPED
+                continuation.yield(Exit(status: info.si_status, bySignal: bySignal))
             }
             continuation.finish()
         }
         thread.name = "VaultLight.bw-wait"
         thread.start()
-    }
-
-    // The wait-status macros (WIFEXITED, ...) aren't imported into Swift.
-    private static func wasSignaled(_ status: Int32) -> Bool {
-        let code = status & 0x7f
-        return code != 0 && code != 0x7f
-    }
-
-    /// The exit status, or the signal number when the child was killed by a signal.
-    private static func exitStatus(_ status: Int32) -> Int32 {
-        wasSignaled(status) ? status & 0x7f : (status >> 8) & 0xff
     }
 
     /// SIGTERM at the timeout, SIGKILL after the grace period, only while the child hasn't exited. Returns whether

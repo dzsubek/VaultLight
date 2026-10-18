@@ -47,15 +47,25 @@ struct ProcessRunnerTests {
         #expect(output.stdout == content)
     }
 
-    /// Only 0, 1 and 2 reach the child, even when the parent holds another descriptor open without close-on-exec.
+    /// Only 0, 1 and 2 reach the child, even when the parent holds other descriptors open without close-on-exec.
+    /// The child is told the leaked descriptors' numbers, so the check holds whatever they are.
     @Test func childInheritsOnlyStdinStdoutAndStderr() async throws {
         var leaked = [Int32](repeating: -1, count: 2)
         #expect(pipe(&leaked) == 0)
         defer { leaked.forEach { close($0) } }
-        let script = "import os\nfor fd in range(3, 64):\n try:\n  os.fstat(fd); print(fd)\n except OSError: pass"
+        for descriptor in leaked { _ = fcntl(descriptor, F_SETFD, 0) }  // inheritable, as a careless caller's would be
+        let script = """
+            import os, sys
+            for fd in sorted(set(range(3, 64)) | set(map(int, sys.argv[1:]))):
+                try:
+                    os.fstat(fd)
+                    print(fd)
+                except OSError:
+                    pass
+            """
         let output = try await ProcessRunner.run(
-            URL(fileURLWithPath: "/usr/bin/python3"), arguments: ["-c", script], environment: [:],
-            timeout: .seconds(30), killGrace: .seconds(2))
+            URL(fileURLWithPath: "/usr/bin/python3"), arguments: ["-c", script] + leaked.map(String.init),
+            environment: [:], timeout: .seconds(30), killGrace: .seconds(2))
         #expect(output.status == 0 && output.outputComplete)
         #expect(String(bytes: output.stdout, encoding: .utf8) == "")
     }
