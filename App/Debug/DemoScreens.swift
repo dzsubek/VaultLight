@@ -59,6 +59,8 @@
                         onboarding: OnboardingModel(backend: backend(for: screen)), openURL: { _ in },
                         opaqueBackground: opaque)
                     controller.panel.appearance = appearance
+                    // The idle footer's sync line (designs 01–05, 08).
+                    controller.syncStatus = SyncStatus(lastSyncedAt: Date().addingTimeInterval(-185))
                     await drive(controller, to: screen)
                     try? await Task.sleep(for: .milliseconds(500))
                     save(png(of: controller.panel), screen.rawValue)
