@@ -70,9 +70,11 @@ extension SyncStatus {
                 return SyncLine(
                     tone: .neutral, text: String(localized: "Synced \(ago)", bundle: .module), offersRetry: false)
             }
-            return isSyncing
-                ? SyncLine(tone: .neutral, text: String(localized: "Syncing…", bundle: .module), offersRetry: false)
-                : nil
+            if isSyncing {
+                return SyncLine(
+                    tone: .neutral, text: String(localized: "Syncing…", bundle: .module), offersRetry: false)
+            }
+            return nil
         }
     }
 }

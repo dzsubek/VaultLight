@@ -9,8 +9,7 @@ struct BWStatusTests {
     @Test func statusReportsTheLastSync() async throws {
         let fake = try FakeBW()
         try fake.configure(["last_sync": SessionManagerTests.earlierSync.text])
-        let lastSync = try #require(try await fake.client().status().lastSync)
-        #expect(abs(lastSync.timeIntervalSince(SessionManagerTests.earlierSync.date)) < 0.000_1)
+        #expect(SessionManagerTests.isEarlierSync(try await fake.client().status().lastSync))
         try fake.configure(["last_sync": "2026-10-17T08:00:00Z"])
         #expect(try await fake.client().status().lastSync == Date(timeIntervalSince1970: 1_792_224_000))
     }

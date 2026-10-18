@@ -14,14 +14,10 @@ extension SessionManagerTests {
         date.map { abs($0.timeIntervalSince(earlierSync.date)) < 0.000_1 } ?? false
     }
 
-    func syncStatus(_ manager: SessionManager) async -> SyncStatus {
-        await manager.syncStatus()
-    }
-
     /// Waits until the sync after unlock has finished.
     func settled(_ manager: SessionManager, syncs: Int = 1) async throws {
         try await eventually {
-            let status = await syncStatus(manager)
+            let status = await manager.syncStatus()
             return try count(of: "sync") >= syncs && !status.isSyncing
         }
     }
@@ -66,10 +62,10 @@ extension SessionManagerTests {
     @Test func syncNowJoinsARunningSync() async throws {
         try fake.configure(["delay": ["sync": 1]])
         let manager = try await unlockedManager()
-        try await eventually { await syncStatus(manager).isSyncing }
+        try await eventually { await manager.syncStatus().isSyncing }
         try await manager.sync()
         #expect(try count(of: "sync") == 1)
-        #expect(await syncStatus(manager).isSyncing == false)
+        #expect(await manager.syncStatus().isSyncing == false)
     }
 
     @Test func lastSyncStartsFromBWStatus() async throws {
@@ -77,7 +73,7 @@ extension SessionManagerTests {
         let manager = manager(store: InMemorySessionStore())
         #expect(try await manager.refreshState() == .needsMasterPassword(.noStoredSession))
         #expect(try await manager.unlock(masterPassword: FakeBW.Defaults.masterPassword) == .unlocked)
-        let status = await syncStatus(manager)
+        let status = await manager.syncStatus()
         #expect(Self.isEarlierSync(status.lastSyncedAt))
         #expect(status.failure == nil)
     }
@@ -88,34 +84,34 @@ extension SessionManagerTests {
         _ = try await manager.refreshState()
         #expect(try await manager.unlock(masterPassword: FakeBW.Defaults.masterPassword) == .unlocked)
         try await settled(manager)
-        var offline = await syncStatus(manager)
+        let offline = await manager.syncStatus()
         #expect(offline.failure == .offline)
         // A failed sync keeps the time of the last good one.
         #expect(Self.isEarlierSync(offline.lastSyncedAt))
 
         try fake.configure(["fail": ["sync": "Something unexpected happened."]])
         await #expect(throws: BWError.self) { try await manager.sync() }
-        #expect(await syncStatus(manager).failure == .failed)
+        #expect(await manager.syncStatus().failure == .failed)
 
         try fake.configure([:])
         clock.advance(by: 90)
         try await manager.sync()
-        offline = await syncStatus(manager)
-        #expect(offline == SyncStatus(lastSyncedAt: clock.now, failure: nil, isSyncing: false))
+        let synced = await manager.syncStatus()
+        #expect(synced == SyncStatus(lastSyncedAt: clock.now, failure: nil, isSyncing: false))
         // The stream carries the latest status to its one listener.
         var updates = manager.syncStatusUpdates.makeAsyncIterator()
-        #expect(await updates.next() == offline)
+        #expect(await updates.next() == synced)
     }
 
     @Test func clearResetsTheSyncStatus() async throws {
         try fake.configure(["delay": ["sync": 1]])
         let manager = try await unlockedManager()
-        try await eventually { await syncStatus(manager).isSyncing }
+        try await eventually { await manager.syncStatus().isSyncing }
         await manager.lockNow()
-        #expect(await syncStatus(manager) == SyncStatus())
+        #expect(await manager.syncStatus() == SyncStatus())
         // The sync that was running finishes after the lock and publishes nothing.
         try await Task.sleep(for: .milliseconds(1_500))
-        #expect(await syncStatus(manager) == SyncStatus())
+        #expect(await manager.syncStatus() == SyncStatus())
     }
 
     /// A lock while `bw sync` runs: the decrypted vault is never listed again for a session that is gone (spec 3.5,
@@ -123,7 +119,7 @@ extension SessionManagerTests {
     @Test func aSyncCutShortByALockNeverListsTheVault() async throws {
         try fake.configure(["delay": ["sync": 1]])
         let manager = try await unlockedManager()
-        try await eventually { await syncStatus(manager).isSyncing }
+        try await eventually { await manager.syncStatus().isSyncing }
         let lists = try count(of: "list")
         await manager.lockNow()
         try await Task.sleep(for: .milliseconds(1_800))
@@ -136,7 +132,7 @@ extension SessionManagerTests {
         try await settled(manager)
         try fake.configure(["delay": ["sync": 1]])
         let syncNow = Task { try? await manager.sync() }
-        try await eventually { await syncStatus(manager).isSyncing }
+        try await eventually { await manager.syncStatus().isSyncing }
         try await manager.lockAndForget()
         await syncNow.value
         let all = try commands()

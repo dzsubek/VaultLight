@@ -103,7 +103,7 @@
         }
 
         private static func milliseconds(_ duration: Duration) -> Double {
-            Double(duration.components.seconds) * 1_000 + Double(duration.components.attoseconds) / 1e15
+            duration / .milliseconds(1)
         }
 
         private static func summary(_ samples: [Double]) -> [String: Double] {

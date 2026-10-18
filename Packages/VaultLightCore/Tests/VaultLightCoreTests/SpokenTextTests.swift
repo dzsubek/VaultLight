@@ -13,6 +13,10 @@ struct SpokenTextTests {
         hasTOTP: true)
     static let bare = VaultEntry(id: "bare", name: "Bare", username: "", uris: [])
 
+    static func model() -> PanelViewModel {
+        PanelViewModel(vault: FakePanelVault(entries: PanelViewModelTests.entries), system: RecordingPanelSystem())
+    }
+
     @Test func rowReadsNameUsernameHostPlaceAndOneTimeCode() {
         let result = SearchResult(entry: Self.github, folderName: "Work", organizationName: nil, tier: .namePrefix)
         #expect(result.spokenDescription == "GitHub, octo, github.com, Work, has one-time code")
@@ -30,8 +34,7 @@ struct SpokenTextTests {
     }
 
     @Test func selectionIsAnnouncedAsItMoves() async {
-        let model = PanelViewModel(
-            vault: FakePanelVault(entries: PanelViewModelTests.entries), system: RecordingPanelSystem())
+        let model = Self.model()
         await model.setQuery("git")
         #expect(model.spokenSelection == "GitHub, octo, github.com, has one-time code")
         _ = await model.handle(.down)
@@ -39,8 +42,7 @@ struct SpokenTextTests {
     }
 
     @Test func noMatchesIsAnnouncedWithTheQuery() async {
-        let model = PanelViewModel(
-            vault: FakePanelVault(entries: PanelViewModelTests.entries), system: RecordingPanelSystem())
+        let model = Self.model()
         await model.setQuery("  kubernetes ")
         #expect(model.spokenSelection == "No matches for “kubernetes”")
         await model.setQuery("")

@@ -2,9 +2,9 @@ import SwiftUI
 import VaultLightCore
 
 /// The footer (spec 5.4, design 03/04/05/08): the status on the left, key hints on the right. Copy confirmations and
-/// errors come first, then the clipboard countdown, then the sync line (design 08 "Priority"). While a copied secret is on the clipboard the footer shows its countdown (spec 6.2): on the right, in
-/// place of the hints, with the copy confirmation (design 04); on the left when the panel is reopened before the
-/// clear, so the hints stay.
+/// errors come first, then the clipboard countdown, then the sync line (design 08 "Priority"). While a copied secret
+/// is on the clipboard the footer shows its countdown (spec 6.2): on the right, in place of the hints, with the copy
+/// confirmation (design 04); on the left when the panel is reopened before the clear, so the hints stay.
 struct PanelFooterView: View {
     let footer: PanelFooter
     let hasSelection: Bool
