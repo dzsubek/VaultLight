@@ -29,6 +29,9 @@ final class SearchPanel: NSPanel {
         // ignores it). The panel is never restored on relaunch.
         sharingType = .none
         isRestorable = false
+        // Tab moves between the onboarding fields (NOTES.md Screen 11). SwiftUI's fields sit inside the sheet view, so
+        // the loop must follow the views on screen; search never sees Tab (the key monitor takes it).
+        autorecalculatesKeyViewLoop = true
     }
 
     override var canBecomeKey: Bool { true }
