@@ -64,7 +64,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         items.append(open)
         items.append(.separator())
         items.append(
-            item("Sync Now", #selector(syncNow), target: target, enabled: status.canSync && !model.syncStatus.isSyncing)
+            item(
+                String(localized: "Sync Now"), #selector(syncNow), target: target,
+                enabled: status.canSync && !model.syncStatus.isSyncing)
         )
         items.append(item(String(localized: "Lock Now"), #selector(lockNow), target: target, enabled: status.canLock))
         items.append(
@@ -164,7 +166,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                     "VaultLight locks the vault and deletes the stored session. Your master password is needed next time."
             )
         alert.addButton(withTitle: String(localized: "Lock and Forget"))
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         Task { await model.lockAndForget() }
     }

@@ -54,7 +54,8 @@ struct PanelFooterView: View {
 
     @ViewBuilder private var status: some View {
         if let message = footer.message {
-            HStack(spacing: 8) {
+            // The copy check sits closer to its text than a status dot does (designs 03, 04).
+            HStack(spacing: footer.isCopyConfirmation ? 6 : 8) {
                 indicator
                 Text(message)
                     .font(.system(size: PanelMetrics.footerFontSize))
@@ -99,7 +100,7 @@ struct PanelFooterView: View {
         switch footer {
         case .usernameCopied, .passwordCopied, .codeCopied:
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 15))
+                .font(.system(size: 14))
                 .foregroundStyle(Theme.teal)
         case .noPassword, .noTOTP, .noUsername, .noURL:
             Circle().fill(Theme.amber).frame(width: 8, height: 8)
@@ -147,6 +148,8 @@ extension SyncLine.Tone {
 }
 
 extension PanelFooter {
+    var isCopyConfirmation: Bool { self == .usernameCopied || self == .passwordCopied || self == .codeCopied }
+
     /// The footer confirms a password or code copy, the copies that are cleared on a timer (spec 6.2).
     var confirmsSecretCopy: Bool { self == .passwordCopied || self == .codeCopied }
 }

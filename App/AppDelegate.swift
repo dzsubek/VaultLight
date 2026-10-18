@@ -92,7 +92,8 @@ enum MainMenu {
                     NSMenuItem(title: String(localized: "Redo"), action: Selector(("redo:")), keyEquivalent: "Z"),
                     .separator(),
                     NSMenuItem(title: String(localized: "Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
-                    NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
+                    NSMenuItem(
+                        title: String(localized: "Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
                     NSMenuItem(
                         title: String(localized: "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
                     NSMenuItem(

@@ -298,6 +298,8 @@ extension SessionManager {
 
     private func rebuild(afterSyncWith session: SessionKey, generation: Int) async throws {
         try await client.sync(session: session)
+        // Cleared while `bw sync` ran: never list the decrypted vault for a session that is gone.
+        guard generation == self.generation, !Task.isCancelled else { throw BWError.locked }
         let rebuilt = try await client.listVault(session: session)
         guard generation == self.generation else { throw BWError.locked }
         index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
@@ -325,9 +327,10 @@ extension SessionManager {
         }
     }
 
-    /// Drops the session key, the index (with its copy boost) and background sync. Returns the cancelled sync task.
+    /// Drops the session key, the index (with its copy boost) and background sync. Returns the cancelled background
+    /// loop and the cancelled running sync, so "Lock and forget" and "Sign out" can wait for both.
     @discardableResult
-    private func clear(because reason: String) -> Task<Void, Never>? {
+    private func clear(because reason: String) -> (loop: Task<Void, Never>?, sync: Task<Void, any Error>?) {
         generation &+= 1
         let wasUnlocked = session != nil
         session = nil
@@ -339,26 +342,29 @@ extension SessionManager {
         let pendingSync = syncTask
         pendingSync?.cancel()
         syncTask = nil
+        let running = runningSync
+        running?.cancel()
         runningSync = nil
         updateSyncStatus { $0 = SyncStatus() }
         if wasUnlocked {
             Self.logger.info("Session cleared: \(reason, privacy: .private)")
             clearedContinuation.yield()
         }
-        return pendingSync
+        return (pendingSync, running)
     }
 
     /// Clears the session, deletes the stored one, waits for a running sync to stop, then runs `command`. Throws the
     /// first failure only after every step has run.
     private func clearAndForget(_ command: (BWClient) async throws -> Void) async throws {
-        let pendingSync = clear(because: "forget")
+        let pending = clear(because: "forget")
         var failure: (any Error)?
         do {
             try await store.deleteSession()
         } catch {
             failure = error
         }
-        await pendingSync?.value
+        await pending.loop?.value
+        _ = await pending.sync?.result
         do {
             try await command(client)
         } catch {

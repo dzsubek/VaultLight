@@ -117,4 +117,31 @@ extension SessionManagerTests {
         try await Task.sleep(for: .milliseconds(1_500))
         #expect(await syncStatus(manager) == SyncStatus())
     }
+
+    /// A lock while `bw sync` runs: the decrypted vault is never listed again for a session that is gone (spec 3.5,
+    /// 9.1 "shortest practical time").
+    @Test func aSyncCutShortByALockNeverListsTheVault() async throws {
+        try fake.configure(["delay": ["sync": 1]])
+        let manager = try await unlockedManager()
+        try await eventually { await syncStatus(manager).isSyncing }
+        let lists = try count(of: "list")
+        await manager.lockNow()
+        try await Task.sleep(for: .milliseconds(1_800))
+        #expect(try count(of: "list") == lists)
+    }
+
+    /// Lock and forget waits for a Sync Now that is running, then runs `bw lock` last, with no listing in between.
+    @Test func lockAndForgetWaitsForASyncNowToStop() async throws {
+        let manager = try await unlockedManager()
+        try await settled(manager)
+        try fake.configure(["delay": ["sync": 1]])
+        let syncNow = Task { try? await manager.sync() }
+        try await eventually { await syncStatus(manager).isSyncing }
+        try await manager.lockAndForget()
+        await syncNow.value
+        let all = try commands()
+        #expect(all.last == "lock")
+        let lastSync = try #require(all.lastIndex(of: "sync"))
+        #expect(!all[lastSync...].contains("list"))
+    }
 }
