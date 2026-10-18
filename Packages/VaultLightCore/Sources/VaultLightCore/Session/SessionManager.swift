@@ -1,38 +1,6 @@
 import Foundation
 import os
 
-/// What the panel shows (spec 3.1). A missing or unsafe `bw` is reported by the `BWError` a call throws.
-public enum VaultState: Sendable, Equatable {
-    /// `bw` is logged out: onboarding (spec 3.2).
-    case needsOnboarding
-    /// Locked with no usable stored session: the master password field.
-    case needsMasterPassword(MasterPasswordReason)
-    /// Locked, and a stored session within its maximum age exists: "Touch ID to unlock".
-    case storedSessionAvailable
-    /// Search is ready.
-    case unlocked
-}
-
-/// Why the master password is needed, for the footer (design Screen 7).
-public enum MasterPasswordReason: Sendable, Equatable {
-    case noStoredSession
-    /// The stored session was created before the last restart (spec 3.5).
-    case restarted
-    /// The stored session passed its maximum age.
-    case storedSessionExpired
-    /// `bw` no longer accepted the stored session (spec 3.4 step 5).
-    case sessionRejected
-}
-
-/// System notifications that clear the in-memory session (spec 3.5). The app maps NSWorkspace and distributed
-/// notifications to these; tests yield them directly.
-public enum SystemEvent: Sendable {
-    case willSleep
-    case screenLocked
-    /// Fast user switching moved this login session to the background.
-    case sessionResigned
-}
-
 /// Owns the unlocked session (spec 2, 3.4, 3.5): the session key, the search index built from it, and background
 /// sync. Only this type reads the session store, and the session key never leaves it.
 ///
@@ -160,10 +128,14 @@ public actor SessionManager {
         } catch SessionStoreError.notFound {
             return try await refreshState()
         }
+        // The sheet suspended this call: a clear, or a newer unlock, may have happened meanwhile.
+        guard !isSuperseded(since: generation) else { return try await refreshState() }
         let verdict = try await storedSessionVerdict(createdAt: read.createdAt)
         guard verdict == .valid else { return try await lockedState(storedSession: verdict) }
         let key = read.key
-        switch try await client.status(session: key).state {
+        let state = try await client.status(session: key).state
+        guard !isSuperseded(since: generation) else { return try await refreshState() }
+        switch state {
         case .unlocked:
             break
         case .locked:
@@ -174,7 +146,7 @@ public actor SessionManager {
             return .needsOnboarding
         }
         let listing = try await client.listVault(session: key)
-        guard generation == self.generation else { return try await refreshState() }
+        guard !isSuperseded(since: generation) else { return try await refreshState() }
         install(key, listing: listing, storedSessionCreatedAt: read.createdAt)
         return .unlocked
     }
@@ -277,6 +249,7 @@ extension SessionManager {
         } catch {
             Self.logger.error("Reading the stored session failed: \(diagnosticKind(of: error), privacy: .private)")
             try? await store.deleteSession()
+            await lockBW()
             return nil
         }
         switch stored {
@@ -291,13 +264,23 @@ extension SessionManager {
         if verdict != .valid {
             Self.logger.info("Stored session expired: \(String(describing: verdict), privacy: .private)")
             try await store.deleteSession()
-            do {
-                try await client.lock()
-            } catch {
-                Self.logger.error("bw lock failed: \(String(describing: error), privacy: .private)")
-            }
+            await lockBW()
         }
         return verdict
+    }
+
+    /// `bw lock`, which pairs with every delete of the stored session (spec 3.5). A failure is only logged.
+    private func lockBW() async {
+        do {
+            try await client.lock()
+        } catch {
+            Self.logger.error("bw lock failed: \(diagnosticKind(of: error), privacy: .private)")
+        }
+    }
+
+    /// Whether a clear ran since `generation` was read, or another unlock installed a session meanwhile.
+    private func isSuperseded(since generation: Int) -> Bool {
+        generation != self.generation || session != nil
     }
 
     /// The locked state for a stored-session verdict. Asks `bw` only when there is no usable stored session.

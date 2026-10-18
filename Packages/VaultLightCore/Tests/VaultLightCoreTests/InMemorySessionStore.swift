@@ -19,6 +19,7 @@ actor InMemorySessionStore: SessionStore {
     private var deleteError: SessionStoreError?
     private var storedSessionOverride: StoredSession?
     private var storedSessionError: SessionStoreError?
+    private var readHook: (@Sendable () async -> Void)?
 
     init(_ item: Item? = nil) {
         self.item = item
@@ -30,6 +31,11 @@ actor InMemorySessionStore: SessionStore {
 
     func setDeleteError(_ error: SessionStoreError?) {
         deleteError = error
+    }
+
+    /// Runs inside `readSession`, as the Touch ID sheet would: other calls can run while it suspends.
+    func setReadHook(_ hook: (@Sendable () async -> Void)?) {
+        readHook = hook
     }
 
     func setStoredSessionOverride(_ stored: StoredSession?) {
@@ -49,6 +55,7 @@ actor InMemorySessionStore: SessionStore {
 
     func readSession(reason: String) async throws -> StoredSessionRead {
         readReasons.append(reason)
+        await readHook?()
         if let readError { throw readError }
         guard let item else { throw SessionStoreError.notFound }
         return StoredSessionRead(key: item.key, createdAt: item.createdAt)

@@ -30,8 +30,10 @@ public struct KeychainSessionStore: SessionStore {
     }
 
     public func storedSession() async throws -> StoredSession {
+        let context = LAContext()
+        defer { context.invalidate() }
         var result: CFTypeRef?
-        let status = SecItemCopyMatching(attributesQuery(context: LAContext()) as CFDictionary, &result)
+        let status = SecItemCopyMatching(attributesQuery(context: context) as CFDictionary, &result)
         return try storedSession(status: status, attributes: result as? [String: Any])
     }
 

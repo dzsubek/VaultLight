@@ -9,10 +9,14 @@ import Testing
 /// calls `SecItem*`: the data-protection keychain needs the app's entitlement, and tests must never touch the user's
 /// Keychain. The real store is checked by hand.
 @Suite("KeychainSessionStore")
-struct KeychainSessionStoreTests {
+final class KeychainSessionStoreTests {
     private let suiteName = "com.vaultlight.test.\(UUID().uuidString)"
     private let defaults: UserDefaults
     private let store: KeychainSessionStore
+
+    deinit {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
 
     init() throws {
         defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -146,7 +150,6 @@ struct KeychainSessionStoreTests {
         #expect(stored.count == 1)
         #expect(stored[KeychainSessionStore.createdAtHintKey] as? Double == created.timeIntervalSince1970)
         #expect(store.createdAtHint() == created)
-        defaults.removePersistentDomain(forName: suiteName)
     }
 
     @Test func clearingTheHintRemovesIt() {
@@ -154,7 +157,6 @@ struct KeychainSessionStoreTests {
         store.clearCreatedAtHint()
         #expect(store.createdAtHint() == nil)
         #expect(defaults.object(forKey: KeychainSessionStore.createdAtHintKey) == nil)
-        defaults.removePersistentDomain(forName: suiteName)
     }
 
     @Test func unusableHintCountsAsMissing() {
@@ -162,7 +164,6 @@ struct KeychainSessionStoreTests {
         #expect(store.createdAtHint() == nil)
         defaults.set(Double.nan, forKey: KeychainSessionStore.createdAtHintKey)
         #expect(store.createdAtHint() == nil)
-        defaults.removePersistentDomain(forName: suiteName)
     }
 
     @Test func statusesMapToTypedErrors() {
