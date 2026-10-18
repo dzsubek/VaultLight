@@ -44,14 +44,18 @@ public actor BWClient {
     private var queueTail: Task<Void, Never>?
     /// The version that passed `checkVersion()`, for this path; checked again after a failure or a path change.
     private var checkedVersion: BWVersion?
+    /// A version that passed in an earlier launch, for the same binary; `nil` checks on every launch.
+    private let versionMemory: BWVersionMemory?
 
     /// `configuredPath` is the Settings `bw` path (nil for auto-detect). The binary is located and checked again
     /// right before every call, so a swapped binary, a `brew upgrade` or a permission change is seen.
     public init(
         locator: BWLocator = BWLocator(), configuredPath: String? = nil,
         dataDirectory: URL = BWClient.defaultDataDirectory,
-        home: String = FileManager.default.homeDirectoryForCurrentUser.path, timeouts: Timeouts = .default
+        home: String = FileManager.default.homeDirectoryForCurrentUser.path, timeouts: Timeouts = .default,
+        versionMemory: BWVersionMemory? = nil
     ) {
+        self.versionMemory = versionMemory
         self.locator = locator
         self.configuredPath = configuredPath
         self.dataDirectory = dataDirectory
@@ -66,12 +70,20 @@ public actor BWClient {
     }
 
     /// `version()` once per path, so a too-old `bw` is reported (spec 7.4) the first time `bw` is needed without
-    /// costing a process on every open. Returns the installed version.
+    /// costing a process on every open; with `versionMemory`, once per binary across launches. Returns the installed
+    /// version.
     @discardableResult
     public func checkVersion() async throws -> BWVersion {
         if let checkedVersion { return checkedVersion }
+        let binary = try executable().url
+        if let remembered = versionMemory?.version(for: binary) {
+            checkedVersion = remembered
+            return remembered
+        }
+        let before = BWVersionMemory.Fingerprint(of: binary)
         let version = try await version()
         checkedVersion = version
+        versionMemory?.remember(version, for: binary, before: before)
         return version
     }
 

@@ -37,6 +37,10 @@ public final class SettingsStore {
         Key.backgroundSyncMinutes, Key.server, Key.selfHostedServerURL, Key.bwPath, Key.launchAtLogin,
     ]
 
+    /// The `bw --version` check remembered across launches, kept in the same defaults (a path, a date, a size and
+    /// a version; no secret). Not a setting, so not in `settings`.
+    public var versionMemory: BWVersionMemory { BWVersionMemory(defaults: defaults) }
+
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         settings = Self.load(from: defaults)
@@ -53,7 +57,7 @@ public final class SettingsStore {
             if shortcut.hasModifier { settings.hotKey = shortcut }
         }
         func option<T: RawRepresentable>(_ key: String, _ type: T.Type) -> T? {
-            (defaults.object(forKey: key) as? T.RawValue).flatMap(T.init(rawValue:))
+            (defaults.object(forKey: key) as? T.RawValue).flatMap { T(rawValue: $0) }
         }
         settings.session.storedMaximumAge =
             option(Key.storedSessionMaximumAge, SessionSettings.StoredMaximumAge.self)

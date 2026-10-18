@@ -42,7 +42,7 @@ final class AppModel {
         self.settings = settings
         self.clipboard = clipboard
         let current = settings.settings
-        client = BWClient(configuredPath: current.bwPath)
+        client = BWClient(configuredPath: current.bwPath, versionMemory: settings.versionMemory)
         session = SessionManager(
             client: client, store: KeychainSessionStore(), settings: current.session,
             backgroundSyncInterval: current.backgroundSync.interval)
