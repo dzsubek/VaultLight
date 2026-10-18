@@ -23,7 +23,7 @@ enum MenuBarIcon {
         let gap: CGFloat = 5
         let size = NSSize(width: ceil(padding + symbolWidth + gap + labelWidth + padding), height: height)
         let image = NSImage(size: size, flipped: false) { rect in
-            NSColor.black.withAlphaComponent(0.12).setFill()
+            NSColor.black.withAlphaComponent(0.08).setFill()
             NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
             if let symbol = symbol(symbolName) {
                 let origin = NSPoint(x: padding, y: (rect.height - symbol.size.height) / 2)

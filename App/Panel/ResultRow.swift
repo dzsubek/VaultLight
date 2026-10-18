@@ -125,7 +125,7 @@ struct ResultRow: View {
     private var chip: some View {
         Group {
             if isCopied {
-                Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                Image(systemName: "checkmark").font(.system(size: 9, weight: .semibold))
             } else {
                 Text("↵").font(.system(size: 13, weight: .bold))
             }

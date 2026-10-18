@@ -64,12 +64,12 @@ struct PanelFooterView: View {
         let fraction = max(0, min(1, Double(seconds) / (clearAfter / .seconds(1))))
         return HStack(spacing: 8) {
             ZStack {
-                Circle().stroke(Theme.teal.opacity(0.25), lineWidth: 2)
+                Circle().stroke(Theme.teal.opacity(0.25), lineWidth: 1.5)
                 Circle().trim(from: 0, to: fraction)
-                    .stroke(Theme.teal, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .stroke(Theme.teal, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
-            .frame(width: 13, height: 13)
+            .frame(width: 12, height: 12)
             Text("Clears in \(seconds)s")
                 .font(.system(size: 13).monospacedDigit())
                 .foregroundStyle(.secondary)

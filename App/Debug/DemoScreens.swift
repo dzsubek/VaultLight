@@ -59,7 +59,7 @@
             let isDark = appearance?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             strip.layer?.backgroundColor =
                 isDark
-                ? NSColor(srgbRed: 0.11, green: 0.12, blue: 0.14, alpha: 1).cgColor
+                ? NSColor(srgbRed: 0.11, green: 0.12, blue: 0.13, alpha: 1).cgColor
                 : NSColor(srgbRed: 0.94, green: 0.94, blue: 0.95, alpha: 1).cgColor
             let image = MenuBarIcon.countdown(symbolName: "key.horizontal", seconds: 45)
             let icon = NSImageView(image: image)
