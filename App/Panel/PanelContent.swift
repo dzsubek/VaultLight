@@ -39,6 +39,9 @@ enum PanelMetrics {
     static let listPadding: CGFloat = 8
     static let maxVisibleRows = 8
     static let footerHeight: CGFloat = 38
+    /// Footer status and key-hint labels, as in the designs (about 12 pt at 1×), so design 08's longest line fits.
+    static let footerFontSize: CGFloat = 12
+    static let footerHintSpacing: CGFloat = 10
     /// The "no matches" area is as tall as a short list, so the panel doesn't collapse to the field.
     static let emptyListHeight: CGFloat = 200
     /// Until a non-search screen reports its own height.

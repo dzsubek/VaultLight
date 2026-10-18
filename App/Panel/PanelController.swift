@@ -24,8 +24,8 @@ final class PanelController {
     var storedMaximumAge = SessionSettings.StoredMaximumAge.sevenDays
     /// The setup command was just copied: the button says "Copied" for 2 s (design 09).
     private(set) var commandCopied = false
-    /// The warning after a failed sync (spec 7.4 "Offline"); search keeps working.
-    var syncNotice: SyncNotice?
+    /// Background sync and Sync Now for the footer (spec 7.3, design 08); `AppModel` keeps it current.
+    var syncStatus = SyncStatus()
     /// The search field's text. The view sends changes to the view model through `submitQuery()`.
     var queryText = ""
     /// Bumped on every open so the view puts focus in its first field again.
@@ -152,7 +152,7 @@ final class PanelController {
     private func sessionWasCleared() {
         viewModel.reset()
         queryText = ""
-        syncNotice = nil
+        syncStatus = SyncStatus()
         let wasShowingSearch = content == .unlocked
         if wasShowingSearch { content = .checking }
         if wasShowingSearch, !isOpening { close() }

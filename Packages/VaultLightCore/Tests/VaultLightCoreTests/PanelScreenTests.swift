@@ -74,12 +74,10 @@ import Testing
         #expect(MasterPasswordReason.prompt(email: nil) == "Enter your master password.")
     }
 
-    @Test func syncFailuresBecomeFooterNotices() {
-        #expect(SyncNotice(error: BWError.network) == .offline)
-        #expect(SyncNotice(error: BWError.timeout) == .failed)
-        #expect(SyncNotice(error: BWError.unknown("x")) == .failed)
-        #expect(SyncNotice.offline.message == "Offline · showing the cached vault")
-        #expect(SyncNotice.failed.message == "Sync failed")
+    @Test func networkErrorsAreOfflineAndEverythingElseFailed() {
+        #expect(SyncFailure(error: BWError.network) == .offline)
+        #expect(SyncFailure(error: BWError.timeout) == .failed)
+        #expect(SyncFailure(error: BWError.unknown("x")) == .failed)
     }
 
     @Test func relativeTimesForTheLockedScreens() {

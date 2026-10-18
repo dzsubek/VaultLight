@@ -40,11 +40,11 @@ struct SessionManagerTests {
 
     func manager(
         store: InMemorySessionStore, settings: SessionSettings = SessionSettings(),
-        policyCheckInterval: Duration = .seconds(3_600)
+        policyCheckInterval: Duration = .seconds(3_600), backgroundSyncInterval: Duration? = nil
     ) -> SessionManager {
         SessionManager(
             client: fake.client(), store: store, settings: settings, clock: clock.sessionClock,
-            policyCheckInterval: policyCheckInterval)
+            backgroundSyncInterval: backgroundSyncInterval, policyCheckInterval: policyCheckInterval)
     }
 
     func storedItem(age: TimeInterval = 60, key: SessionKey = FakeBW.session) -> InMemorySessionStore.Item {

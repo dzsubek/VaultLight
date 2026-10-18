@@ -19,6 +19,8 @@ public enum PanelKey: Sendable, Equatable {
     case escape
     /// ⌘,
     case openSettings
+    /// ⌘R: Sync Now, also "Try again" after a failed sync (design 08), so it works from the keyboard.
+    case syncNow
 }
 
 /// What the panel does after a key (spec 5.4 "Panel after").
@@ -198,6 +200,10 @@ public final class PanelViewModel {
             return await copyUsername()
         case .openURL:
             return openURL()
+        case .syncNow:
+            // Not a copy: it doesn't take `isBusy`, so ↵ still works while `bw sync` runs.
+            try? await vault.sync()
+            return .stayOpen
         }
     }
 

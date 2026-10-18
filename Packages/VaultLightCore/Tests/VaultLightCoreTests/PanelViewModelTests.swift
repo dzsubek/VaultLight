@@ -73,6 +73,16 @@ struct PanelViewModelTests {
         #expect(system.secrets.isEmpty && system.usernames.isEmpty && system.opened.isEmpty)
     }
 
+    /// ⌘R, and "Try again" after a failed sync (design 08), run Sync Now; the outcome reaches the footer through the
+    /// sync status, so the panel stays open and the clipboard is untouched.
+    @Test func commandRSyncsNowAndStaysOpen() async {
+        await typeGit()
+        #expect(await model.handle(.syncNow) == .stayOpen)
+        #expect(await vault.syncCalls == 1)
+        #expect(model.selectedIndex == 0)
+        #expect(system.secrets.isEmpty && system.usernames.isEmpty && system.opened.isEmpty)
+    }
+
     @Test func commandCommaClosesAndOpensSettings() async {
         #expect(await model.handle(.openSettings) == .closeAndOpenSettings)
     }

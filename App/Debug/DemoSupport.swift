@@ -155,6 +155,7 @@
         func recordCopy(id: String) { index.recordCopy(id: id) }
         func password(for id: String) async throws -> String { "demo" }
         func totp(for id: String) async throws -> String { "000000" }
+        func sync() async throws {}
     }
 
     /// An in-memory pasteboard: the demo never touches the system clipboard.

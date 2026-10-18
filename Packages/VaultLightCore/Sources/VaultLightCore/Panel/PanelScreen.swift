@@ -128,23 +128,6 @@ extension MasterPasswordReason {
     }
 }
 
-/// The footer's warning after a failed sync (spec 7.3, 7.4 "Offline"): search keeps working on the cached vault.
-public enum SyncNotice: Sendable, Equatable {
-    case offline
-    case failed
-
-    public init(error: any Error) {
-        self = (error as? BWError) == .network ? .offline : .failed
-    }
-
-    public var message: String {
-        switch self {
-        case .offline: "Offline · showing the cached vault"
-        case .failed: "Sync failed"
-        }
-    }
-}
-
 /// Short durations for status lines ("expires in 6 days").
 public enum RelativeTime {
     /// Whole units, rounded down, at least one minute.

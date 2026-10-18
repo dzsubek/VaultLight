@@ -13,6 +13,7 @@ actor FakePanelVault: PanelVault {
     private(set) var passwordCalls: [String] = []
     private(set) var totpCalls: [String] = []
     private(set) var copies: [String] = []
+    private(set) var syncCalls = 0
 
     init(entries: [VaultEntry], passwords: [String: String] = [:], codes: [String: String] = [:]) {
         index = SearchIndex(entries: entries)
@@ -39,6 +40,10 @@ actor FakePanelVault: PanelVault {
         if let error = errors[id] { throw error }
         guard let value = passwords[id] else { throw BWError.noValue }
         return value
+    }
+
+    func sync() async throws {
+        syncCalls += 1
     }
 
     func totp(for id: String) async throws -> String {

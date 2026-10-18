@@ -38,14 +38,31 @@
             return hostedView(footers, appearance: appearance)
         }
 
-        static func footer(_ caption: String, _ state: PanelFooter, retry: Bool = false, seconds: Int? = nil)
-            -> some View
-        {
+        /// The three sync states of design 08, each drawn by the real `PanelFooterView` from a `SyncStatus`.
+        static func syncFooterStates(appearance: NSAppearance?) -> NSView {
+            let now = Date()
+            let footers = VStack(alignment: .leading, spacing: 10) {
+                footer("Synced", .idle, sync: SyncStatus(lastSyncedAt: now.addingTimeInterval(-185)))
+                footer(
+                    "Offline", .idle, sync: SyncStatus(lastSyncedAt: now.addingTimeInterval(-185), failure: .offline))
+                footer(
+                    "Sync error", .idle,
+                    sync: SyncStatus(lastSyncedAt: now.addingTimeInterval(-3_700), failure: .failed))
+            }
+            .padding(24)
+            .frame(width: PanelMetrics.width + 48)
+            return hostedView(footers, appearance: appearance)
+        }
+
+        static func footer(
+            _ caption: String, _ state: PanelFooter, retry: Bool = false, seconds: Int? = nil,
+            sync: SyncStatus = SyncStatus()
+        ) -> some View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(caption).font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
                 PanelFooterView(
                     footer: state, hasSelection: true, isTOTPAvailable: state != .noTOTP, secondsUntilClear: seconds,
-                    clearAfter: .seconds(45), onRetry: retry ? {} : nil
+                    clearAfter: .seconds(45), syncStatus: sync, onRetry: retry ? {} : nil, onSyncNow: {}
                 )
                 .frame(width: PanelMetrics.width)
                 .background(SheetBackground())

@@ -1,8 +1,8 @@
 import SwiftUI
 import VaultLightCore
 
-/// The footer (spec 5.4, design 03/04/05): the status on the left, key hints on the
-/// right. While a copied secret is on the clipboard the footer shows its countdown (spec 6.2): on the right, in
+/// The footer (spec 5.4, design 03/04/05/08): the status on the left, key hints on the right. Copy confirmations and
+/// errors come first, then the clipboard countdown, then the sync line (design 08 "Priority"). While a copied secret is on the clipboard the footer shows its countdown (spec 6.2): on the right, in
 /// place of the hints, with the copy confirmation (design 04); on the left when the panel is reopened before the
 /// clear, so the hints stay.
 struct PanelFooterView: View {
@@ -12,29 +12,42 @@ struct PanelFooterView: View {
     /// From `ClipboardManager`: seconds until the copied secret is cleared, `nil` when none is pending.
     let secondsUntilClear: Int?
     let clearAfter: Duration
-    /// The warning after a failed sync, shown while nothing else is (spec 7.4 "Offline").
-    var syncNotice: SyncNotice?
+    /// Background sync (spec 7.3), shown while nothing else is.
+    var syncStatus = SyncStatus()
     /// "Try again" after a failed copy or a timeout (design 16); `nil` when there is nothing to repeat.
     var onRetry: (() -> Void)?
+    /// "Try again" after a failed sync (design 08); ⌘R does the same.
+    var onSyncNow: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 0) {
-            status.layoutPriority(-1)
-            Spacer(minLength: 12)
-            if footer.confirmsSecretCopy, let secondsUntilClear {
-                countdown(secondsUntilClear)
-            } else {
-                HStack(spacing: 14) {
-                    hint(key: "↵", label: "Copy password", dimmed: !hasSelection)
-                    hint(key: "⌘U", label: "Username", dimmed: !hasSelection)
-                    hint(key: "⌘T", label: "Code", dimmed: !hasSelection || !isTOTPAvailable)
-                    hint(key: "⌘O", label: "Open", dimmed: !hasSelection)
-                }
-            }
+        // A status too long for the full hints (a "Sync failed — last synced 12 min ago" with Try again, or a longer
+        // translation) keeps the key caps and drops their labels, rather than being cut off.
+        ViewThatFits(in: .horizontal) {
+            row(hintLabels: true)
+            row(hintLabels: false)
         }
         .padding(.horizontal, 16)
         .frame(height: PanelMetrics.footerHeight)
         .background(Color.primary.opacity(0.025))
+    }
+
+    private func row(hintLabels: Bool) -> some View {
+        HStack(spacing: 0) {
+            status.layoutPriority(-1)
+            Spacer(minLength: 2)
+            if footer.confirmsSecretCopy, let secondsUntilClear {
+                countdown(secondsUntilClear)
+            } else {
+                HStack(spacing: PanelMetrics.footerHintSpacing) {
+                    hint(key: "↵", label: "Copy password", showsLabel: hintLabels, dimmed: !hasSelection)
+                    hint(key: "⌘U", label: "Username", showsLabel: hintLabels, dimmed: !hasSelection)
+                    hint(
+                        key: "⌘T", label: "Code", showsLabel: hintLabels,
+                        dimmed: !hasSelection || !isTOTPAvailable)
+                    hint(key: "⌘O", label: "Open", showsLabel: hintLabels, dimmed: !hasSelection)
+                }
+            }
+        }
     }
 
     @ViewBuilder private var status: some View {
@@ -42,7 +55,7 @@ struct PanelFooterView: View {
             HStack(spacing: 8) {
                 indicator
                 Text(message)
-                    .font(.system(size: 13))
+                    .font(.system(size: PanelMetrics.footerFontSize))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -54,16 +67,30 @@ struct PanelFooterView: View {
             .accessibilityElement(children: .contain)
         } else if let secondsUntilClear {
             countdown(secondsUntilClear)
-        } else if let syncNotice {
-            HStack(spacing: 8) {
-                StatusDot(color: syncNotice == .offline ? Theme.amber : Theme.red)
-                Text(syncNotice.message)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        } else {
+            // "Synced 3 min ago" keeps counting while the panel is open (NOTES.md screen 8).
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                if let line = syncStatus.footerLine(now: context.date) { syncLine(line) }
             }
-            .accessibilityElement(children: .combine)
         }
+    }
+
+    private func syncLine(_ line: SyncLine) -> some View {
+        HStack(spacing: 8) {
+            StatusDot(color: line.tone.color)
+            Text(line.text)
+                .font(.system(size: PanelMetrics.footerFontSize))
+                .foregroundStyle(line.tone == .neutral ? .secondary : .primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if line.offersRetry, let onSyncNow {
+                Button("Try again", action: onSyncNow)
+                    .buttonStyle(CompactButtonStyle())
+                    .help("Sync now (⌘R)")
+                    .accessibilityHint("Syncs the vault again. Shortcut: Command R.")
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder private var indicator: some View {
@@ -93,17 +120,27 @@ struct PanelFooterView: View {
             }
             .frame(width: 12, height: 12)
             Text("Clears in \(seconds)s")
-                .font(.system(size: 13).monospacedDigit())
+                .font(.system(size: PanelMetrics.footerFontSize).monospacedDigit())
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Clipboard clears in \(seconds) seconds")
     }
 
-    private func hint(key: String, label: String, dimmed: Bool) -> some View {
-        KeyHint(key: key, label: label)
+    private func hint(key: String, label: String, showsLabel: Bool, dimmed: Bool) -> some View {
+        KeyHint(key: key, label: label, showsLabel: showsLabel)
             .opacity(dimmed ? 0.4 : 1)
             .accessibilityHidden(dimmed)
+    }
+}
+
+extension SyncLine.Tone {
+    var color: Color {
+        switch self {
+        case .neutral: Color.secondary.opacity(0.6)
+        case .warning: Theme.amber
+        case .error: Theme.red
+        }
     }
 }
 

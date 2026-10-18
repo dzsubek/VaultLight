@@ -7,13 +7,17 @@ struct AccountRecord {
     var serverURL: String?
     /// When the stored session reaches its maximum age, once its creation date is known.
     var storedSessionExpiresAt: Date?
+    /// The CLI's last successful sync, from `bw status`: where the footer's "Synced … ago" starts (spec 7.3).
+    var lastSync: Date?
 
     mutating func remember(_ status: BWStatus) {
         if status.state == .unauthenticated {
             email = nil
             serverURL = status.serverURL
+            lastSync = nil
             return
         }
+        lastSync = status.lastSync ?? lastSync
         email = status.userEmail ?? email
         serverURL = status.serverURL ?? serverURL
     }

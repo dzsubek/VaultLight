@@ -11,6 +11,8 @@ public protocol PanelVault: Sendable {
     func password(for id: String) async throws -> String
     /// `bw get totp`. Throws `BWError.noValue` when the item has none.
     func totp(for id: String) async throws -> String
+    /// `bw sync` and an index rebuild (spec 7.3); the outcome reaches the footer through the sync status.
+    func sync() async throws
 }
 
 extension SessionManager: PanelVault {}

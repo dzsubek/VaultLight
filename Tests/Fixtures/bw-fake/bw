@@ -12,7 +12,8 @@ the spec's process rules so violations fail loudly:
 State, config and a call log live in $BITWARDENCLI_APPDATA_DIR, because the
 wrapper passes a minimal environment and FAKE_* variables would not survive it:
 
-  fake-state.json   {"status": "unauthenticated|locked|unlocked", "server": "..."}
+  fake-state.json   {"status": "unauthenticated|locked|unlocked", "server": "...", "last_sync": "<ISO date>"}
+                    last_sync is set by a successful `sync`; `status` reports it as lastSync (null before).
   fake-config.json  optional overrides, written by tests (see DEFAULTS below)
   fake-calls.jsonl  one line per invocation: {"argv": [...], "env_keys": [...], "concurrent": bool}
                     "concurrent" is true when another call was still running (fake-running
@@ -27,6 +28,7 @@ Config keys (fake-config.json):
   ignore_sigterm    true -> SIGTERM is ignored (tests SIGKILL escalation); set before the call is logged
   require_nointeraction  default true
   initial_status    status to start from when no state file exists yet
+  last_sync         lastSync to report before the first `sync` (an ISO date, or any JSON value to test parsing)
   orphan_holds_pipes  seconds: after answering, fork a child that keeps stdout/stderr open that long
                     while the fake itself exits (tests that the wrapper doesn't wait on leftovers);
                     its PID goes to fake-orphan-pid
@@ -59,6 +61,7 @@ DEFAULTS = {
     "initial_status": "unauthenticated",
     "totp_code": "492039",
     "fail": {},
+    "last_sync": None,
 }
 
 GLOBAL_FLAGS = {"--nointeraction", "--raw", "--pretty", "--quiet", "--response", "--cleanexit"}
@@ -206,7 +209,7 @@ def main(argv):
             status = "locked"
         print(json.dumps({
             "serverUrl": state["server"],
-            "lastSync": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "lastSync": state.get("last_sync", config["last_sync"]),
             "userEmail": None if status == "unauthenticated" else config["email"],
             "userId": None if status == "unauthenticated" else "00000000-0000-0000-0000-00000000fake",
             "status": status,
@@ -282,6 +285,8 @@ def main(argv):
         require_unlocked()
         if config["offline"]:
             fail("FetchError: request to https://api.bitwarden.com failed, reason: getaddrinfo ENOTFOUND")
+        state["last_sync"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        save()
         print("Syncing complete.")
         return 0
 

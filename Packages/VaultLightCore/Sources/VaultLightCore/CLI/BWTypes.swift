@@ -21,11 +21,37 @@ public struct BWStatus: Sendable, Equatable, Decodable {
     public let state: State
     public let serverURL: String?
     public let userEmail: String?
+    /// The CLI's last successful sync; `nil` before the first one or when the value can't be read.
+    public let lastSync: Date?
 
     enum CodingKeys: String, CodingKey {
         case state = "status"
         case serverURL = "serverUrl"
         case userEmail
+        case lastSync
+    }
+
+    public init(state: State, serverURL: String?, userEmail: String?, lastSync: Date? = nil) {
+        self.state = state
+        self.serverURL = serverURL
+        self.userEmail = userEmail
+        self.lastSync = lastSync
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = try container.decode(State.self, forKey: .state)
+        serverURL = try container.decodeIfPresent(String.self, forKey: .serverURL)
+        userEmail = try container.decodeIfPresent(String.self, forKey: .userEmail)
+        // Only the footer uses it, so an unexpected value never fails the status check.
+        let text = try? container.decodeIfPresent(String.self, forKey: .lastSync)
+        lastSync = text.flatMap(Self.parseDate)
+    }
+
+    /// ISO 8601 as `bw` writes it ("2026-10-17T08:00:00.123Z"), with or without fractional seconds.
+    private static func parseDate(_ text: String) -> Date? {
+        (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
+            ?? (try? Date.ISO8601FormatStyle().parse(text))
     }
 }
 

@@ -147,6 +147,7 @@ extension PanelController {
         case "t": .copyTOTP
         case "o": .openURL
         case ",": .openSettings
+        case "r": .syncNow
         default: nil
         }
     }

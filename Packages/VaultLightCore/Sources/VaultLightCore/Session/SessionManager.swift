@@ -17,7 +17,7 @@ public actor SessionManager {
     let clock: SessionClock
     private let policyCheckInterval: Duration
     var policy: SessionPolicy
-    private var backgroundSyncInterval: Duration?
+    var backgroundSyncInterval: Duration?
 
     private var session: SessionKey?
     private var index: SearchIndex?
@@ -26,7 +26,12 @@ public actor SessionManager {
     private var storedSessionCreatedAt: Date?
     private var generation = 0
     var account = AccountRecord()
-    private var syncTask: Task<Void, Never>?
+    /// The background loop: one sync after unlock, then one per interval.
+    var syncTask: Task<Void, Never>?
+    /// The `bw sync` running now; Sync Now joins it instead of queueing a second one.
+    private var runningSync: Task<Void, any Error>?
+    var syncState = SyncStatus()
+    let syncStatusContinuation: AsyncStream<SyncStatus>.Continuation
     private var eventTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
     private let clearedContinuation: AsyncStream<Void>.Continuation
@@ -35,6 +40,9 @@ public actor SessionManager {
     /// One listener only (the app's coordinator, which closes the panel and updates the menu): an `AsyncStream`
     /// hands each element to a single iterator.
     public nonisolated let sessionCleared: AsyncStream<Void>
+
+    /// Yields the sync status each time it changes (spec 7.3, design 08), for one listener, as `sessionCleared`.
+    public nonisolated let syncStatusUpdates: AsyncStream<SyncStatus>
 
     /// `backgroundSyncInterval` is how often `bw sync` runs while unlocked; `nil` turns background sync off.
     /// `policyCheckInterval` bounds how late the idle lock and the lifetimes can fire.
@@ -50,6 +58,7 @@ public actor SessionManager {
         self.backgroundSyncInterval = backgroundSyncInterval
         self.policyCheckInterval = policyCheckInterval
         (sessionCleared, clearedContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(1))
+        (syncStatusUpdates, syncStatusContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(1))
     }
 
     deinit {
@@ -57,6 +66,7 @@ public actor SessionManager {
         eventTask?.cancel()
         watchdogTask?.cancel()
         clearedContinuation.finish()
+        syncStatusContinuation.finish()
     }
 
     public var isUnlocked: Bool { session != nil }
@@ -75,12 +85,6 @@ public actor SessionManager {
 
     public func updateSettings(_ settings: SessionSettings) {
         policy.settings = settings
-    }
-
-    /// Restarts background sync with the new interval while unlocked.
-    public func setBackgroundSyncInterval(_ interval: Duration?) {
-        backgroundSyncInterval = interval
-        if session != nil { startBackgroundSync() }
     }
 
     /// Clears the in-memory session on every event of `events` (sleep, screen lock, fast user switch).
@@ -256,15 +260,31 @@ public actor SessionManager {
         try await withSession { try await $0.getTOTP(id: id, session: $1) }
     }
 
-    /// `bw sync`, then rebuilds the index, keeping the copy boost (spec 2.1, 7.3).
+    /// `bw sync`, then rebuilds the index, keeping the copy boost (spec 2.1, 7.3). Background sync and Sync Now both
+    /// come here: a call while a sync runs joins it. The outcome goes to `syncStatusUpdates`, unless the session was
+    /// cleared meanwhile.
     public func sync() async throws {
-        try await withSession { client, session in
-            try await client.sync(session: session)
-            let generation = self.generation
-            let rebuilt = try await client.listVault(session: session)
-            guard generation == self.generation else { throw BWError.locked }
-            self.index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
+        if let runningSync { return try await runningSync.value }
+        guard enforcePolicy(), let session else { throw BWError.locked }
+        let generation = generation
+        let running = Task { try await rebuild(afterSyncWith: session, generation: generation) }
+        runningSync = running
+        updateSyncStatus { $0.isSyncing = true }
+        let result = await running.result
+        guard generation == self.generation else { throw BWError.locked }
+        runningSync = nil
+        let now = clock.now()
+        updateSyncStatus { status in
+            status.isSyncing = false
+            switch result {
+            case .success:
+                status.lastSyncedAt = now
+                status.failure = nil
+            case .failure(let error):
+                status.failure = SyncFailure(error: error)
+            }
         }
+        try result.get()
     }
 }
 
@@ -276,13 +296,22 @@ extension SessionManager {
         generation != self.generation || session != nil
     }
 
+    private func rebuild(afterSyncWith session: SessionKey, generation: Int) async throws {
+        try await client.sync(session: session)
+        let rebuilt = try await client.listVault(session: session)
+        guard generation == self.generation else { throw BWError.locked }
+        index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
+    }
+
     private func install(_ key: SessionKey, listing: VaultListing, storedSessionCreatedAt: Date) {
         session = key
         index = SearchIndex(entries: listing.entries, folders: listing.folders, organizations: listing.organizations)
         authenticatedAt = clock.now()
         self.storedSessionCreatedAt = storedSessionCreatedAt
         startWatchdog()
-        startBackgroundSync()
+        // Search runs on the cache at once; `bw sync` follows in the background (spec 7.3).
+        updateSyncStatus { $0 = SyncStatus(lastSyncedAt: account.lastSync) }
+        startBackgroundSync(syncingFirst: true)
     }
 
     private func startWatchdog() {
@@ -310,6 +339,8 @@ extension SessionManager {
         let pendingSync = syncTask
         pendingSync?.cancel()
         syncTask = nil
+        runningSync = nil
+        updateSyncStatus { $0 = SyncStatus() }
         if wasUnlocked {
             Self.logger.info("Session cleared: \(reason, privacy: .private)")
             clearedContinuation.yield()
@@ -344,21 +375,5 @@ extension SessionManager {
         let result = try await body(client, session)
         guard generation == self.generation else { throw BWError.locked }
         return result
-    }
-
-    private func startBackgroundSync() {
-        syncTask?.cancel()
-        syncTask = nil
-        guard let interval = backgroundSyncInterval, session != nil else { return }
-        syncTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await self?.sync()
-                } catch {
-                    Self.logger.error("Background sync failed: \(String(describing: error), privacy: .private)")
-                }
-                try? await Task.sleep(for: interval)
-            }
-        }
     }
 }

@@ -25,8 +25,9 @@ final class AppModel {
     private(set) var summary = VaultSummary()
     /// The `bw` in use and its version, for Settings and About (designs 14, 15).
     private(set) var bwInUse: (path: String, version: String)?
-    private(set) var lastSyncedAt: Date?
-    private(set) var isSyncing = false
+    /// Background sync and Sync Now (spec 7.3, design 08), as `SessionManager` publishes it. Kept on the panel
+    /// controller, whose footer shows it.
+    var syncStatus: SyncStatus { panel.syncStatus }
 
     /// Opens Settings at a tab; `nil` reopens the last one. Set by the app delegate.
     @ObservationIgnored var showSettings: ((SettingsTab?) -> Void)?
@@ -35,6 +36,7 @@ final class AppModel {
     @ObservationIgnored private var applied: AppSettings?
     /// Off in screenshot mode: nothing may start `bw` or replace the invented state.
     @ObservationIgnored var isLive = true
+    @ObservationIgnored private var syncListener: Task<Void, Never>?
 
     init(clipboard: ClipboardManager, settings: SettingsStore = SettingsStore()) {
         self.settings = settings
@@ -54,6 +56,12 @@ final class AppModel {
         panel.onOpenSettings = { [weak self] tab in self?.showSettings?(tab) }
         panel.configuredBWPath = { [weak settings] in settings?.settings.bwPath }
         apply()
+        syncListener = Task { [weak self, session] in
+            for await status in session.syncStatusUpdates {
+                guard let self, isLive else { continue }
+                panel.syncStatus = status
+            }
+        }
     }
 
     /// Registers the saved shortcut. Called once at launch.
@@ -64,6 +72,7 @@ final class AppModel {
 
     func stop() {
         hotKey.stop()
+        syncListener?.cancel()
     }
 
     // MARK: Settings (spec 8)
@@ -194,17 +203,13 @@ final class AppModel {
         await refreshSummary()
     }
 
+    /// Joins a sync that is already running; the outcome reaches the footer, menu and Settings via `syncStatus`.
     func syncNow() async {
-        guard isLive, !isSyncing else { return }
-        isSyncing = true
-        defer { isSyncing = false }
+        guard isLive else { return }
         do {
             try await session.sync()
-            lastSyncedAt = Date()
-            panel.syncNotice = nil
         } catch {
             Self.logger.error("Sync failed: \(diagnosticKind(of: error), privacy: .public)")
-            panel.syncNotice = SyncNotice(error: error)
         }
     }
 
@@ -238,7 +243,7 @@ final class AppModel {
             lastState = state
             summary = demoSummary
             shortcutUnavailable = unavailable
-            lastSyncedAt = synced
+            panel.syncStatus = SyncStatus(lastSyncedAt: synced)
             bwInUse = inUse
         }
     #endif

@@ -63,7 +63,7 @@ struct VaultSettingsView: View {
                     HStack(spacing: 10) {
                         Text(lastSynced).font(.system(size: 13)).foregroundStyle(.secondary)
                         Button("Sync Now") { Task { await model.syncNow() } }
-                            .disabled(!model.summary.isUnlocked || model.isSyncing)
+                            .disabled(!model.summary.isUnlocked || model.syncStatus.isSyncing)
                     }
                 }
             }
@@ -207,8 +207,16 @@ struct VaultSettingsView: View {
     // MARK: Sync and bw
 
     private var lastSynced: String {
-        guard let date = model.lastSyncedAt else { return "Not this session" }
-        return RelativeTime.ago(Date().timeIntervalSince(date))
+        let status = model.syncStatus
+        if status.isSyncing { return "Syncing…" }
+        let last =
+            status.lastSyncedAt.map { RelativeTime.ago(Date().timeIntervalSince($0)) }
+            ?? (model.summary.isUnlocked ? "Never" : "—")
+        switch status.failure {
+        case .offline: return "\(last) · offline"
+        case .failed: return "\(last) · last sync failed"
+        case nil: return last
+        }
     }
 
     private var locationSelection: Binding<Location> {

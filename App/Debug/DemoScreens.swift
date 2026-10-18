@@ -66,6 +66,7 @@
                 }
                 save(png(of: menuBarStrip(appearance: appearance)), "04-password-copied-menubar")
                 save(png(of: footerStates(appearance: appearance)), "16-error-footer")
+                save(png(of: syncFooterStates(appearance: appearance)), "08-footer-states")
                 for (state, file) in menuStates {
                     let model = demoModel()
                     state(model)

@@ -9,9 +9,9 @@ struct KeyChip: View {
 
     var body: some View {
         Text(key)
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 5)
-            .frame(minWidth: 22, minHeight: 20)
+            .font(.system(size: 11, weight: .medium))
+            .padding(.horizontal, 4)
+            .frame(minWidth: 19, minHeight: 18)
             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.chipFill))
     }
 }
@@ -20,11 +20,15 @@ struct KeyChip: View {
 struct KeyHint: View {
     let key: String
     var label: String?
+    /// Off when the footer is short of room: VoiceOver still reads the label.
+    var showsLabel = true
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             KeyChip(key: key)
-            if let label { Text(label).font(.system(size: 13)).lineLimit(1).fixedSize() }
+            if let label, showsLabel {
+                Text(label).font(.system(size: PanelMetrics.footerFontSize)).lineLimit(1).fixedSize()
+            }
         }
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .ignore)
@@ -60,14 +64,14 @@ struct FooterBar<Trailing: View>: View {
             HStack(spacing: 8) {
                 StatusDot(color: dot)
                 Text(status)
-                    .font(.system(size: 13))
+                    .font(.system(size: PanelMetrics.footerFontSize))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .layoutPriority(-1)
             .accessibilityElement(children: .combine)
             Spacer(minLength: 12)
-            HStack(spacing: 14) { trailing }
+            HStack(spacing: PanelMetrics.footerHintSpacing) { trailing }
         }
         .padding(.horizontal, 16)
         .frame(height: PanelMetrics.footerHeight)

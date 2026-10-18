@@ -39,8 +39,9 @@ private struct UnlockedView: View {
             PanelFooterView(
                 footer: model.footer, hasSelection: model.hasSelection, isTOTPAvailable: model.isTOTPAvailable,
                 secondsUntilClear: controller.clipboard.secondsUntilClear,
-                clearAfter: controller.clipboard.clearAfter, syncNotice: controller.syncNotice,
-                onRetry: model.canRetry ? { Task { await controller.retry() } } : nil)
+                clearAfter: controller.clipboard.clearAfter, syncStatus: controller.syncStatus,
+                onRetry: model.canRetry ? { Task { await controller.retry() } } : nil,
+                onSyncNow: { Task { await controller.perform(.syncNow) } })
         }
     }
 
