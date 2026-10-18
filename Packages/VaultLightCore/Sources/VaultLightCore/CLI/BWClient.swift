@@ -1,81 +1,6 @@
 import Foundation
 import os
 
-/// A Bitwarden session key. Its description never contains the value, so it can't leak through
-/// string interpolation, `dump` or a debugger summary.
-public struct SessionKey: Sendable, Equatable, CustomStringConvertible, CustomDebugStringConvertible,
-    CustomReflectable
-{
-    public let rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public var description: String { "SessionKey(redacted)" }
-    public var debugDescription: String { description }
-    public var customMirror: Mirror { Mirror(self, children: []) }
-}
-
-/// `bw status` output (spec 3.1).
-public struct BWStatus: Sendable, Equatable, Decodable {
-    public enum State: String, Sendable, Decodable {
-        case unauthenticated, locked, unlocked
-    }
-
-    public let state: State
-    public let serverURL: String?
-    public let userEmail: String?
-
-    enum CodingKeys: String, CodingKey {
-        case state = "status"
-        case serverURL = "serverUrl"
-        case userEmail
-    }
-}
-
-/// A dotted `bw` version such as `2026.9.0`.
-public struct BWVersion: Sendable, Comparable, CustomStringConvertible {
-    public let components: [Int]
-
-    public init(components: [Int]) { self.components = components }
-
-    public init?(_ text: String) {
-        let parts = text.trimmingCharacters(in: .whitespacesAndNewlines).split(
-            separator: ".", omittingEmptySubsequences: false)
-        let numbers = parts.compactMap { Int($0) }
-        guard !parts.isEmpty, numbers.count == parts.count else { return nil }
-        components = numbers
-    }
-
-    public var description: String { components.map(String.init).joined(separator: ".") }
-
-    /// Missing trailing components count as zero, so 2025.1 == 2025.1.0.
-    private func padded(to count: Int) -> [Int] { components + Array(repeating: 0, count: count - components.count) }
-
-    public static func == (lhs: BWVersion, rhs: BWVersion) -> Bool {
-        let count = max(lhs.components.count, rhs.components.count)
-        return lhs.padded(to: count) == rhs.padded(to: count)
-    }
-
-    public static func < (lhs: BWVersion, rhs: BWVersion) -> Bool {
-        let count = max(lhs.components.count, rhs.components.count)
-        return lhs.padded(to: count).lexicographicallyPrecedes(rhs.padded(to: count))
-    }
-}
-
-/// A two-step login code for `bw login --method <m> --code <c>` (spec 7.2). The code is one-time, so it may be an argument.
-public struct BWTwoFactor: Sendable {
-    public enum Method: Int, Sendable {
-        case authenticator = 0
-        case email = 1
-    }
-
-    public let method: Method
-    public let code: String
-
-    public init(method: Method, code: String) {
-        self.method = method
-        self.code = code
-    }
-}
-
 /// The only way VaultLight runs `bw` (spec 7.1, 7.2).
 ///
 /// - Calls run one at a time, in the order they were made. Actor isolation alone doesn't give that, because an actor
@@ -112,11 +37,13 @@ public actor BWClient {
     private static let logger = Logger(subsystem: "com.vaultlight.core", category: "bw")
 
     private let locator: BWLocator
-    private let configuredPath: String?
+    private var configuredPath: String?
     private let dataDirectory: URL
     private let home: String
     private let timeouts: Timeouts
     private var queueTail: Task<Void, Never>?
+    /// The version that passed `checkVersion()`, for this path; checked again after a failure or a path change.
+    private var checkedVersion: BWVersion?
 
     /// `configuredPath` is the Settings `bw` path (nil for auto-detect). The binary is located and checked again
     /// right before every call, so a swapped binary, a `brew upgrade` or a permission change is seen.
@@ -130,6 +57,29 @@ public actor BWClient {
         self.dataDirectory = dataDirectory
         self.home = home
         self.timeouts = timeouts
+    }
+
+    /// Changes the Settings `bw` path (`nil` auto-detects). Calls already queued keep the path they started with.
+    public func setConfiguredPath(_ path: String?) {
+        configuredPath = path
+        checkedVersion = nil
+    }
+
+    /// `version()` once per path, so a too-old `bw` is reported (spec 7.4) the first time `bw` is needed without
+    /// costing a process on every open. Returns the installed version.
+    @discardableResult
+    public func checkVersion() async throws -> BWVersion {
+        if let checkedVersion { return checkedVersion }
+        let version = try await version()
+        checkedVersion = version
+        return version
+    }
+
+    /// The `bw` the next call would run, after the spec 7.1 checks. Starts no process.
+    ///
+    /// - Throws: `BWError.notInstalled` or `BWError.unsafeBinary`.
+    public func executable() throws -> BWExecutable {
+        try locator.locate(configuredPath: configuredPath)
     }
 
     // MARK: Commands

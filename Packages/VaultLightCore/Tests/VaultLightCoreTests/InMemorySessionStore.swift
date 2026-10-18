@@ -17,6 +17,7 @@ actor InMemorySessionStore: SessionStore {
     private(set) var deleteCount = 0
     private var readError: SessionStoreError?
     private var deleteError: SessionStoreError?
+    private var saveError: SessionStoreError?
     private var storedSessionOverride: StoredSession?
     private var storedSessionError: SessionStoreError?
     private var readHook: (@Sendable () async -> Void)?
@@ -31,6 +32,10 @@ actor InMemorySessionStore: SessionStore {
 
     func setDeleteError(_ error: SessionStoreError?) {
         deleteError = error
+    }
+
+    func setSaveError(_ error: SessionStoreError?) {
+        saveError = error
     }
 
     /// Runs inside `readSession`, as the Touch ID sheet would: other calls can run while it suspends.
@@ -62,6 +67,7 @@ actor InMemorySessionStore: SessionStore {
     }
 
     func saveSession(_ key: SessionKey, createdAt: Date) async throws {
+        if let saveError { throw saveError }
         item = Item(key: key, createdAt: createdAt)
     }
 

@@ -113,6 +113,9 @@ public struct SearchIndex: Sendable {
         recentCopies.removeAll { positions[$0] == nil }
     }
 
+    /// How many logins the index holds.
+    public var count: Int { records.count }
+
     /// Records a copy of the item, for the ranking boost and the empty-query list.
     public mutating func recordCopy(id: String) {
         guard positions[id] != nil else { return }

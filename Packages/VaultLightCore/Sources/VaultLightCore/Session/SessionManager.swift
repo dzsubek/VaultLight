@@ -10,13 +10,13 @@ import os
 /// Every clear bumps `generation`. Work that awaits (an unlock, a sync, a copy) checks it before using its result,
 /// so nothing finished after a lock can bring the session or index back.
 public actor SessionManager {
-    private static let logger = Logger(subsystem: "com.vaultlight.core", category: "session")
+    static let logger = Logger(subsystem: "com.vaultlight.core", category: "session")
 
-    private let client: BWClient
-    private let store: any SessionStore
-    private let clock: SessionClock
+    let client: BWClient
+    let store: any SessionStore
+    let clock: SessionClock
     private let policyCheckInterval: Duration
-    private var policy: SessionPolicy
+    var policy: SessionPolicy
     private var backgroundSyncInterval: Duration?
 
     private var session: SessionKey?
@@ -25,6 +25,7 @@ public actor SessionManager {
     /// Creation date of the stored session this one came from; its maximum age also ends the in-memory session.
     private var storedSessionCreatedAt: Date?
     private var generation = 0
+    var account = AccountRecord()
     private var syncTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
@@ -60,6 +61,18 @@ public actor SessionManager {
 
     public var isUnlocked: Bool { session != nil }
 
+    /// What the panel, the menu and Settings show about the account (designs 06, 07, 13, 14). Starts no process.
+    public func summary() -> VaultSummary {
+        account.summary(isUnlocked: session != nil, loginCount: index?.count)
+    }
+
+    /// `bw status`, remembering the account for `summary()`.
+    public func accountStatus() async throws -> BWStatus {
+        let status = try await client.status()
+        account.remember(status)
+        return status
+    }
+
     public func updateSettings(_ settings: SessionSettings) {
         policy.settings = settings
     }
@@ -86,22 +99,33 @@ public actor SessionManager {
     /// session can be offered; deletes a stored session past its limits and runs `bw lock` (spec 3.5).
     public func refreshState() async throws -> VaultState {
         if enforcePolicy() { return .unlocked }
+        // A missing or unsafe `bw` is reported before any Touch ID sheet (spec 3.1); this starts no process.
+        _ = try await client.executable()
         return try await lockedState(storedSession: storedSessionVerdict())
     }
 
     /// `bw unlock` with the master password, then stores the session key (spec 3.2 steps 3–4). The password lives
     /// only for this call.
-    public func unlock(masterPassword: String) async throws -> VaultState {
+    ///
+    /// `progress` reports each step for the onboarding checklist (design 12): the vault unlocked, whether the
+    /// session reached the Keychain, then the index with its login count.
+    public func unlock(
+        masterPassword: String, progress: @Sendable (UnlockProgress) -> Void = { _ in }
+    ) async throws -> VaultState {
         let generation = generation
         let key = try await client.unlock(password: masterPassword)
+        progress(.vaultUnlocked)
         let listing = try await client.listVault(session: key)
         guard generation == self.generation else { return try await refreshState() }
         let createdAt = clock.now()
+        var saved = true
         do {
             try await store.saveSession(key, createdAt: createdAt)
         } catch {
-            Self.logger.error("Storing the session failed: \(String(describing: error), privacy: .private)")
+            saved = false
+            Self.logger.error("Storing the session failed: \(diagnosticKind(of: error), privacy: .public)")
         }
+        progress(.sessionSaved(saved))
         guard generation == self.generation else {
             // A lock or "Lock and forget" ran while the key was being stored.
             do {
@@ -112,6 +136,9 @@ public actor SessionManager {
             return try await refreshState()
         }
         install(key, listing: listing, storedSessionCreatedAt: createdAt)
+        account.storedSessionExpiresAt =
+            saved ? createdAt.addingTimeInterval(policy.settings.storedMaximumAge.seconds) : nil
+        progress(.indexBuilt(logins: index?.count ?? 0))
         return .unlocked
     }
 
@@ -133,7 +160,10 @@ public actor SessionManager {
         let verdict = try await storedSessionVerdict(createdAt: read.createdAt)
         guard verdict == .valid else { return try await lockedState(storedSession: verdict) }
         let key = read.key
-        let state = try await client.status(session: key).state
+        try await client.checkVersion()
+        let status = try await client.status(session: key)
+        account.remember(status)
+        let state = status.state
         guard !isSuperseded(since: generation) else { return try await refreshState() }
         switch state {
         case .unlocked:
@@ -179,6 +209,7 @@ public actor SessionManager {
 
     /// "Lock and forget": clears the in-memory session, deletes the stored one, then runs `bw lock`.
     public func lockAndForget() async throws {
+        account.storedSessionExpiresAt = nil
         try await clearAndForget { try await $0.lock() }
     }
 
@@ -188,6 +219,7 @@ public actor SessionManager {
     /// If `bw logout` fails, `bw lock` runs too, which invalidates every session key, including one whose Keychain
     /// delete failed. The error is still thrown: `bw` is then logged in, so onboarding can't start yet.
     public func signOut() async throws -> VaultState {
+        account = AccountRecord()
         try await clearAndForget { client in
             do {
                 try await client.logout()
@@ -239,60 +271,9 @@ public actor SessionManager {
 extension SessionManager {
     // MARK: Private
 
-    /// The stored session's verdict, or `nil` when there is none. An expired one is deleted and `bw` locked. A
-    /// session whose date isn't readable yet is `.valid`: Touch ID decides. A store that can't be read at all is
-    /// deleted and treated as none, so the master password is still possible.
-    private func storedSessionVerdict() async throws -> SessionVerdict? {
-        let stored: StoredSession
-        do {
-            stored = try await store.storedSession()
-        } catch {
-            Self.logger.error("Reading the stored session failed: \(diagnosticKind(of: error), privacy: .private)")
-            try? await store.deleteSession()
-            await lockBW()
-            return nil
-        }
-        switch stored {
-        case .none: return nil
-        case .dateUnknown: return .valid
-        case .created(let createdAt): return try await storedSessionVerdict(createdAt: createdAt)
-        }
-    }
-
-    private func storedSessionVerdict(createdAt: Date) async throws -> SessionVerdict {
-        let verdict = policy.storedSession(createdAt: createdAt, now: clock.now(), bootTime: clock.bootTime())
-        if verdict != .valid {
-            Self.logger.info("Stored session expired: \(String(describing: verdict), privacy: .private)")
-            try await store.deleteSession()
-            await lockBW()
-        }
-        return verdict
-    }
-
-    /// `bw lock`, which pairs with every delete of the stored session (spec 3.5). A failure is only logged.
-    private func lockBW() async {
-        do {
-            try await client.lock()
-        } catch {
-            Self.logger.error("bw lock failed: \(diagnosticKind(of: error), privacy: .private)")
-        }
-    }
-
     /// Whether a clear ran since `generation` was read, or another unlock installed a session meanwhile.
     private func isSuperseded(since generation: Int) -> Bool {
         generation != self.generation || session != nil
-    }
-
-    /// The locked state for a stored-session verdict. Asks `bw` only when there is no usable stored session.
-    private func lockedState(storedSession verdict: SessionVerdict?) async throws -> VaultState {
-        let reason: MasterPasswordReason
-        switch verdict {
-        case .valid: return .storedSessionAvailable
-        case nil: reason = .noStoredSession
-        case .expiredByRestart: reason = .restarted
-        case .expiredByAge, .expiredByLifetime, .expiredByIdle: reason = .storedSessionExpired
-        }
-        return try await client.status().state == .unauthenticated ? .needsOnboarding : .needsMasterPassword(reason)
     }
 
     private func install(_ key: SessionKey, listing: VaultListing, storedSessionCreatedAt: Date) {

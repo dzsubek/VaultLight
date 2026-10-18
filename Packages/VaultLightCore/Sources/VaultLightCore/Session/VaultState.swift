@@ -31,3 +31,33 @@ public enum SystemEvent: Sendable {
     /// Fast user switching moved this login session to the background.
     case sessionResigned
 }
+
+/// A step of `SessionManager.unlock(masterPassword:progress:)`, for the onboarding checklist (design 12).
+public enum UnlockProgress: Sendable, Equatable {
+    case vaultUnlocked
+    /// Whether the session key reached the Keychain; when it didn't, Touch ID won't be offered next time.
+    case sessionSaved(Bool)
+    case indexBuilt(logins: Int)
+}
+
+/// What is known about the account without starting a process (`SessionManager.summary()`).
+public struct VaultSummary: Sendable, Equatable {
+    public var isUnlocked: Bool
+    public var email: String?
+    public var serverURL: String?
+    /// When the stored session reaches its maximum age; `nil` when there is none or its date isn't known yet.
+    public var storedSessionExpiresAt: Date?
+    /// Logins in the index while unlocked.
+    public var loginCount: Int?
+
+    public init(
+        isUnlocked: Bool = false, email: String? = nil, serverURL: String? = nil,
+        storedSessionExpiresAt: Date? = nil, loginCount: Int? = nil
+    ) {
+        self.isUnlocked = isUnlocked
+        self.email = email
+        self.serverURL = serverURL
+        self.storedSessionExpiresAt = storedSessionExpiresAt
+        self.loginCount = loginCount
+    }
+}
