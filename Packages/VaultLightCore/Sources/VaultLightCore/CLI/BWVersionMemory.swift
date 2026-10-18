@@ -1,11 +1,13 @@
 import Foundation
 
 /// Remembers a `bw --version` that passed (spec 7.4), across launches, for one binary: its resolved path,
-/// modification date and size. `bw --version` costs over a second, and the version only
+/// modification date, size, device, inode and change time. `bw --version` costs over a second, and the version only
 /// changes with the file. A `brew upgrade`, another path or a replaced file doesn't match and is checked again.
 ///
 /// Not a safety check: the binary's location, owner and permissions are still checked before every call (spec 7.1).
-/// Non-secret: a path, a date, a size and a version number.
+/// Non-secret: a path, file metadata and a version number. A minimum version raised for a security reason must not
+/// rely on this memory: `version(for:)` compares with the current `BWClient.minimumVersion`, so raising it checks
+/// every binary again.
 public struct BWVersionMemory: Sendable {
     public static let key = "bwVersionCheck"
 
@@ -32,34 +34,49 @@ public struct BWVersionMemory: Sendable {
         defaults.set(before.record(version: version), forKey: Self.key)
     }
 
-    /// What identifies one binary on disk.
+    /// What identifies one binary on disk. The owner can reset the modification date (`touch -r`) and match the size,
+    /// but not the change time, which moves on every write, `chmod` or rename into place; a replaced file also gets
+    /// another inode.
     struct Fingerprint: Equatable {
         let path: String
         let modified: Double
         let size: Int64
+        let device: Int64
+        let inode: Int64
+        let changed: Double
 
         init?(of executable: URL) {
             let path = executable.resolvingSymlinksInPath().path
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
-                let modified = attributes[.modificationDate] as? Date,
-                let size = (attributes[.size] as? NSNumber)?.int64Value
-            else { return nil }
+            var info = stat()
+            guard stat(path, &info) == 0 else { return nil }
             self.path = path
-            self.modified = modified.timeIntervalSince1970
-            self.size = size
+            modified = Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1e9
+            size = Int64(info.st_size)
+            device = Int64(info.st_dev)
+            inode = Int64(bitPattern: UInt64(info.st_ino))
+            changed = Double(info.st_ctimespec.tv_sec) + Double(info.st_ctimespec.tv_nsec) / 1e9
         }
 
         init?(record: [String: Any]) {
             guard let path = record["path"] as? String, let modified = record["modified"] as? Double,
-                let size = (record["size"] as? NSNumber)?.int64Value
+                let changed = record["changed"] as? Double,
+                let size = (record["size"] as? NSNumber)?.int64Value,
+                let device = (record["device"] as? NSNumber)?.int64Value,
+                let inode = (record["inode"] as? NSNumber)?.int64Value
             else { return nil }
             self.path = path
             self.modified = modified
             self.size = size
+            self.device = device
+            self.inode = inode
+            self.changed = changed
         }
 
         func record(version: BWVersion) -> [String: Any] {
-            ["path": path, "modified": modified, "size": size, "version": version.description]
+            [
+                "path": path, "modified": modified, "size": size, "device": device, "inode": inode,
+                "changed": changed, "version": version.description,
+            ]
         }
     }
 }

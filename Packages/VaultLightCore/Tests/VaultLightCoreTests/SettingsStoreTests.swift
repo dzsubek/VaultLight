@@ -65,8 +65,10 @@ final class TestDefaults {
         let suite = try TestDefaults()
         SettingsStore(defaults: suite.defaults).settings = Self.everythingChanged
         #expect(Set(suite.stored.keys) == SettingsStore.storedKeys)
-        // The creation-date hint is the only other key VaultLight writes (`KeychainSessionStore`).
-        #expect(SettingsStore.storedKeys.isDisjoint(with: [KeychainSessionStore.createdAtHintKey]))
+        // The only other keys VaultLight writes: the creation-date hint (`KeychainSessionStore`) and the
+        // remembered `bw --version` check (`BWVersionMemory`).
+        #expect(
+            SettingsStore.storedKeys.isDisjoint(with: [KeychainSessionStore.createdAtHintKey, BWVersionMemory.key]))
     }
 
     @Test func storedValuesAreOnlyOptionsPathsAndFlags() throws {

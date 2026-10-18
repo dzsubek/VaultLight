@@ -83,7 +83,9 @@ public actor BWClient {
         let before = BWVersionMemory.Fingerprint(of: binary)
         let version = try await version()
         checkedVersion = version
-        versionMemory?.remember(version, for: binary, before: before)
+        // `version()` locates `bw` again when it runs: remember only if that is still the binary fingerprinted (a
+        // `brew upgrade` in between moves the symlink), and `remember` checks the file didn't change.
+        if (try? executable().url) == binary { versionMemory?.remember(version, for: binary, before: before) }
         return version
     }
 

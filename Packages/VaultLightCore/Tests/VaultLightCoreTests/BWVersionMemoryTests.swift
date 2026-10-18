@@ -53,18 +53,20 @@ final class BWVersionMemoryTests {
         try await launch().checkVersion()
         #expect(defaults.dictionaryRepresentation().keys.filter { $0 == BWVersionMemory.key }.count == 1)
         let record = try storedRecord()
-        #expect(Set(record.keys) == ["path", "modified", "size", "version"])
+        #expect(Set(record.keys) == ["path", "modified", "size", "device", "inode", "changed", "version"])
         #expect(record["path"] as? String == FakeBW.executable.resolvingSymlinksInPath().path)
         #expect(record["version"] as? String == FakeBW.Defaults.version)
     }
 
-    @Test(arguments: ["path", "modified", "size"])
+    /// The change time can't be set by the file's owner (`touch -r` can reset the modification date), and the device
+    /// and inode change when a file is replaced, so a copied binary with a forged date and size is checked again.
+    @Test(arguments: ["path", "modified", "size", "device", "inode", "changed"])
     func aChangedBinaryIsCheckedAgain(_ field: String) async throws {
         try await launch().checkVersion()
         switch field {
         case "path": try changeRecord("path", to: "/opt/homebrew/Cellar/bitwarden-cli/2025.1.0/bin/bw")
-        case "modified": try changeRecord("modified", to: 1_000.0)
-        default: try changeRecord("size", to: 1)
+        case "modified", "changed": try changeRecord(field, to: 1_000.0)
+        default: try changeRecord(field, to: 1)
         }
         try await launch().checkVersion()
         #expect(try versionCalls() == 2)

@@ -30,7 +30,8 @@ public final class SettingsStore {
         static let launchAtLogin = "launchAtLogin"
     }
 
-    /// Every key this store may write. Nothing else from the settings reaches disk.
+    /// Every key this store may write. Nothing else from the settings reaches disk. Two other keys share these
+    /// defaults, neither a secret: `KeychainSessionStore.createdAtHintKey` and `BWVersionMemory.key`.
     public static let storedKeys: Set<String> = [
         Key.hotKeyCode, Key.hotKeyModifiers, Key.hotKeyLabel, Key.storedSessionMaximumAge,
         Key.requireMasterPasswordAfterRestart, Key.inMemoryLifetime, Key.idleLock, Key.clipboardClearSeconds,
