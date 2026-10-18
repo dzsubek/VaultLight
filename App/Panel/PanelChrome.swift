@@ -53,16 +53,28 @@ struct StatusDot: View {
     }
 }
 
+/// A small spinner in place of a status dot: a `bw` call is running (each takes seconds).
+struct FooterSpinner: View {
+    var body: some View {
+        ProgressView()
+            .controlSize(.mini)
+            .frame(width: 12, height: 12)
+            .accessibilityHidden(true)
+    }
+}
+
 /// The 38 pt footer: a status on the left, key hints on the right.
 struct FooterBar<Trailing: View>: View {
     let status: String
     var dot: Color = Color.secondary.opacity(0.6)
+    /// A spinner in place of the dot while a `bw` call runs.
+    var busy = false
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
         HStack(spacing: 0) {
             HStack(spacing: 8) {
-                StatusDot(color: dot)
+                if busy { FooterSpinner() } else { StatusDot(color: dot) }
                 Text(status)
                     .font(.system(size: PanelMetrics.footerFontSize))
                     .foregroundStyle(.secondary)

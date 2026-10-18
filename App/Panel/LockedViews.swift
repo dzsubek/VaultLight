@@ -11,7 +11,7 @@ struct NonSearchView: View {
         case .onboarding:
             OnboardingView(controller: controller)
         case .touchID(let canceled):
-            TouchIDView(canceled: canceled, summary: controller.summary)
+            TouchIDView(canceled: canceled, opening: controller.isOpeningVault, summary: controller.summary)
         case .masterPassword(let reason, let attempts, let busy):
             MasterPasswordView(
                 reason: reason, attempts: attempts, busy: busy, email: controller.summary.email,
@@ -58,6 +58,8 @@ private let bodyLeading: CGFloat = 57
 
 private struct TouchIDView: View {
     let canceled: Bool
+    /// Touch ID succeeded and the vault is being listed.
+    var opening = false
     let summary: VaultSummary
 
     var body: some View {
@@ -87,7 +89,13 @@ private struct TouchIDView: View {
             .padding(.vertical, 52)
             .accessibilityElement(children: .combine)
             Divider()
-            FooterBar(status: String(localized: "Locked")) { KeyHint(key: "↵", label: canceled ? "Try again" : nil) }
+            if opening {
+                FooterBar(status: String(localized: "Opening your vault…"), busy: true) { EmptyView() }
+            } else {
+                FooterBar(status: String(localized: "Locked")) {
+                    KeyHint(key: "↵", label: canceled ? "Try again" : nil)
+                }
+            }
         }
     }
 

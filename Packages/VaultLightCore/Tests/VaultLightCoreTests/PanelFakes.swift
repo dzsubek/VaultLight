@@ -23,6 +23,8 @@ actor FakePanelVault: PanelVault {
 
     func fail(_ id: String, with error: BWError?) { errors[id] = error }
     func delay(query: String, by duration: Duration) { delays[query] = duration }
+    private var secretDelay: Duration?
+    func delaySecrets(by duration: Duration) { secretDelay = duration }
 
     func search(_ query: String) async -> [SearchResult] {
         let results = index.search(query)
@@ -37,6 +39,7 @@ actor FakePanelVault: PanelVault {
 
     func password(for id: String) async throws -> String {
         passwordCalls.append(id)
+        if let secretDelay { try? await Task.sleep(for: secretDelay) }
         if let error = errors[id] { throw error }
         guard let value = passwords[id] else { throw BWError.noValue }
         return value

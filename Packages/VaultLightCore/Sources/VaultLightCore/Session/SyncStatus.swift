@@ -7,12 +7,35 @@ public struct SyncStatus: Sendable, Equatable {
     public var lastSyncedAt: Date?
     /// Why the last sync failed; `nil` once one succeeds.
     public var failure: SyncFailure?
-    public var isSyncing: Bool
+    /// The background work running now; the footer shows it with a spinner.
+    public var activity: SyncActivity?
 
-    public init(lastSyncedAt: Date? = nil, failure: SyncFailure? = nil, isSyncing: Bool = false) {
+    /// A `bw sync` or the index rebuild after it is running; Sync Now joins it.
+    public var isSyncing: Bool { activity == .syncing || activity == .refreshing }
+
+    public init(lastSyncedAt: Date? = nil, failure: SyncFailure? = nil, activity: SyncActivity? = nil) {
         self.lastSyncedAt = lastSyncedAt
         self.failure = failure
-        self.isSyncing = isSyncing
+        self.activity = activity
+    }
+}
+
+/// Background work after unlock and on each sync. Every step is a `bw` call of a few seconds, so
+/// the footer says which one runs.
+public enum SyncActivity: Sendable, Equatable {
+    /// Folder and organization names (and the account, when not known yet) after search opened on the items alone.
+    case loadingDetails
+    /// `bw sync`.
+    case syncing
+    /// The index rebuilt from `bw list` after a sync.
+    case refreshing
+
+    public var message: String {
+        switch self {
+        case .loadingDetails: String(localized: "Loading folders…", bundle: .module)
+        case .syncing: String(localized: "Syncing…", bundle: .module)
+        case .refreshing: String(localized: "Updating search…", bundle: .module)
+        }
     }
 }
 
@@ -36,6 +59,8 @@ public struct SyncLine: Sendable, Equatable {
         case warning
         /// Red dot, with "Try again".
         case error
+        /// A spinner: background work is running.
+        case busy
     }
 
     public let tone: Tone
@@ -51,9 +76,10 @@ public struct SyncLine: Sendable, Equatable {
 }
 
 extension SyncStatus {
-    /// What the footer shows while no copy confirmation or error is (design 08); `nil` before anything is known. A
-    /// running sync keeps the previous line, so the footer doesn't flicker every interval.
+    /// What the footer shows while no copy confirmation or error is (design 08); `nil` before anything is known.
+    /// Running work comes first, with a spinner: each step takes seconds.
     public func footerLine(now: Date) -> SyncLine? {
+        if let activity { return SyncLine(tone: .busy, text: activity.message, offersRetry: false) }
         let ago = lastSyncedAt.map { RelativeTime.ago(now.timeIntervalSince($0)) }
         switch failure {
         case .offline:
@@ -69,10 +95,6 @@ extension SyncStatus {
             if let ago {
                 return SyncLine(
                     tone: .neutral, text: String(localized: "Synced \(ago)", bundle: .module), offersRetry: false)
-            }
-            if isSyncing {
-                return SyncLine(
-                    tone: .neutral, text: String(localized: "Syncing…", bundle: .module), offersRetry: false)
             }
             return nil
         }

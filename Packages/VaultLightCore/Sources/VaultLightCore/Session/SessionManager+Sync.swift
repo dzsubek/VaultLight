@@ -1,7 +1,7 @@
 import Foundation
 
-/// Background sync (spec 7.3): one `bw sync` right after unlock, then one per interval while unlocked. The interval
-/// comes from Settings; Off keeps only the sync after unlock.
+/// Background work (spec 7.3): after unlock the folder and organization names, then one `bw sync`, then one sync per
+/// interval while unlocked. The interval comes from Settings; Off keeps only the sync after unlock.
 extension SessionManager {
     /// The sync status now; `syncStatusUpdates` carries every change.
     public func syncStatus() -> SyncStatus {
@@ -20,7 +20,10 @@ extension SessionManager {
         let interval = backgroundSyncInterval
         guard isUnlocked, syncingFirst || interval != nil else { return }
         syncTask = Task { [weak self] in
-            if syncingFirst { await self?.backgroundSync() }
+            if syncingFirst {
+                await self?.loadDetails()
+                await self?.backgroundSync()
+            }
             guard let interval else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
@@ -28,6 +31,28 @@ extension SessionManager {
                 await self?.backgroundSync()
             }
         }
+    }
+
+    /// Folder and organization names, and the account when this run hasn't seen `bw status` yet, after search opened
+    /// on the items alone. Runs first in the background loop, before the sync after unlock. A lock meanwhile makes
+    /// `withSession` throw, and nothing is applied.
+    func loadDetails() async {
+        guard isUnlocked else { return }
+        let generation = generation
+        updateSyncStatus { $0.activity = .loadingDetails }
+        do {
+            let names = try await withSession { try await $0.listNames(session: $1) }
+            index?.setNames(folders: names.folders, organizations: names.organizations)
+            if account.email == nil {
+                let status = try await withSession { try await $0.status(session: $1) }
+                account.remember(status)
+                if syncState.lastSyncedAt == nil { updateSyncStatus { $0.lastSyncedAt = status.lastSync } }
+            }
+        } catch {
+            Self.logger.error("Loading folders failed: \(diagnosticKind(of: error), privacy: .public)")
+        }
+        guard generation == self.generation else { return }
+        updateSyncStatus { if $0.activity == .loadingDetails { $0.activity = nil } }
     }
 
     func updateSyncStatus(_ change: (inout SyncStatus) -> Void) {

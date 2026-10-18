@@ -25,6 +25,15 @@
             return strip
         }
 
+        /// The composite footer images, by file name.
+        static func footerImages(appearance: NSAppearance?) -> [(NSView, String)] {
+            [
+                (footerStates(appearance: appearance), "16-error-footer"),
+                (syncFooterStates(appearance: appearance), "08-footer-states"),
+                (busyFooterStates(appearance: appearance), "footer-busy"),
+            ]
+        }
+
         /// The four footer states of design 16 state 5, each drawn by the real `PanelFooterView`.
         static func footerStates(appearance: NSAppearance?) -> NSView {
             let footers = VStack(alignment: .leading, spacing: 10) {
@@ -48,6 +57,22 @@
                 footer(
                     "Sync error", .idle,
                     sync: SyncStatus(lastSyncedAt: now.addingTimeInterval(-3_700), failure: .failed))
+            }
+            .padding(24)
+            .frame(width: PanelMetrics.width + 48)
+            return hostedView(footers, appearance: appearance)
+        }
+
+        /// Background work and a copy waiting on `bw` (no design): spinner and message in the footer.
+        static func busyFooterStates(appearance: NSAppearance?) -> NSView {
+            let synced = Date().addingTimeInterval(-185)
+            let footers = VStack(alignment: .leading, spacing: 10) {
+                footer("Copy waiting on bw get password (↵)", .gettingPassword)
+                footer(
+                    "After unlock: folder and organization names", .idle, sync: SyncStatus(activity: .loadingDetails))
+                footer("bw sync", .idle, sync: SyncStatus(lastSyncedAt: synced, activity: .syncing))
+                footer(
+                    "Index rebuilt after a sync", .idle, sync: SyncStatus(lastSyncedAt: synced, activity: .refreshing))
             }
             .padding(24)
             .frame(width: PanelMetrics.width + 48)

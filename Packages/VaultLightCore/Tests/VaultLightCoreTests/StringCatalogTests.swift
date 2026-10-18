@@ -30,7 +30,11 @@ struct StringCatalogTests {
             footers.compactMap(\.message) + failures.map(\.message)
             + [SetupProblem.notInstalled, .unsafeBinary].flatMap { [$0.title, $0.message] }
             + [PanelFailure.timedOut, .offline, .unknown].map(\.message)
-            + [SyncStatus(failure: .offline), SyncStatus(isSyncing: true)].compactMap { $0.footerLine(now: .now)?.text }
+            + [SyncStatus(failure: .offline), SyncStatus(activity: .syncing)].compactMap {
+                $0.footerLine(now: .now)?.text
+            }
+            + [SyncActivity.loadingDetails, .refreshing].map(\.message)
+            + [PanelFooter.gettingPassword, .gettingCode].compactMap(\.message)
         for text in copy {
             #expect(keys.contains(text), "\(text)")
         }

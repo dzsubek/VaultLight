@@ -22,6 +22,8 @@ final class PanelController {
     private(set) var setupPath: String?
     /// For the onboarding unlock step's "Touch ID unlocks VaultLight for up to …" (design 12).
     var storedMaximumAge = SessionSettings.StoredMaximumAge.sevenDays
+    /// Touch ID succeeded and `bw list items` runs (seconds): the Touch ID screen says the vault is opening.
+    private(set) var isOpeningVault = false
     /// The setup command was just copied: the button says "Copied" for 2 s (design 09).
     private(set) var commandCopied = false
     /// Background sync and Sync Now for the footer (spec 7.3, design 08); `AppModel` keeps it current.
@@ -251,14 +253,27 @@ final class PanelController {
     func unlockWithTouchID() async {
         guard let session, panel.isVisible, !isAuthenticating else { return }
         isAuthenticating = true
-        defer { isAuthenticating = false }
+        defer {
+            isAuthenticating = false
+            isOpeningVault = false
+        }
         do {
-            await apply(try await session.unlockWithStoredSession(reason: String(localized: "unlock your vault")))
+            let keyRead: @Sendable () -> Void = { [weak self] in
+                Task { @MainActor in self?.vaultIsOpening() }
+            }
+            await apply(
+                try await session.unlockWithStoredSession(
+                    reason: String(localized: "unlock your vault"), keyRead: keyRead))
         } catch SessionStoreError.cancelled, SessionStoreError.authenticationFailed {
             content = .touchID(canceled: true)
         } catch {
             await show(error)
         }
+    }
+
+    private func vaultIsOpening() {
+        guard isAuthenticating, case .touchID = content else { return }
+        isOpeningVault = true
     }
 
     /// `bw unlock` with the master password (design 07). The caller clears its field before calling; the password

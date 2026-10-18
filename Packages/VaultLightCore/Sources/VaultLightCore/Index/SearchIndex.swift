@@ -113,6 +113,12 @@ public struct SearchIndex: Sendable {
         recentCopies.removeAll { positions[$0] == nil }
     }
 
+    /// Folder and organization names that arrive after the entries (search opens on `bw list items` alone),
+    /// keeping the copy boost.
+    public mutating func setNames(folders: [VaultFolder], organizations: [VaultOrganization]) {
+        replaceEntries(records.map(\.entry), folders: folders, organizations: organizations)
+    }
+
     /// How many logins the index holds.
     public var count: Int { records.count }
 

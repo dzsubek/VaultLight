@@ -184,6 +184,20 @@ struct SearchIndexTests {
         #expect(Self.names(index, "beta").isEmpty)
     }
 
+    /// Search opens on `bw list items` alone; folder and organization names arrive later.
+    @Test func namesArriveAfterTheEntriesAndKeepTheBoost() {
+        var index = SearchIndex(entries: [
+            VaultEntry(id: "a", name: "Alpha", folderId: "f1"), VaultEntry(id: "b", name: "Beta", organizationId: "o1"),
+        ])
+        index.recordCopy(id: "b")
+        #expect(index.search("alpha").first?.folderName == nil)
+        index.setNames(
+            folders: [VaultFolder(id: "f1", name: "Work")], organizations: [VaultOrganization(id: "o1", name: "Acme")])
+        #expect(index.search("alpha").first?.folderName == "Work")
+        #expect(index.search("beta").first?.organizationName == "Acme")
+        #expect(index.search("").map(\.id) == ["b"])
+    }
+
     @Test func buildsFromTheFixtureVault() async throws {
         let fake = try FakeBW.unlocked()
         let client = fake.client()

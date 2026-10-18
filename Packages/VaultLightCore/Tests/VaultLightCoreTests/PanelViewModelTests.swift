@@ -83,6 +83,17 @@ struct PanelViewModelTests {
         #expect(system.secrets.isEmpty && system.usernames.isEmpty && system.opened.isEmpty)
     }
 
+    /// `bw get password` takes seconds: the footer says so until the copy lands.
+    @Test func theFooterSaysAPasswordIsBeingFetched() async throws {
+        await typeGit()
+        await vault.delaySecrets(by: .milliseconds(300))
+        let copy = Task { await model.handle(.returnKey) }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(model.footer == .gettingPassword)
+        #expect(await copy.value == .close)
+        #expect(model.footer == .passwordCopied)
+    }
+
     @Test func commandCommaClosesAndOpensSettings() async {
         #expect(await model.handle(.openSettings) == .closeAndOpenSettings)
     }

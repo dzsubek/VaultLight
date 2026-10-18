@@ -226,7 +226,7 @@ struct VaultSettingsView: View {
 
     private var lastSynced: String {
         let status = model.syncStatus
-        if status.isSyncing { return String(localized: "Syncing…") }
+        if let activity = status.activity { return activity.message }
         let last =
             status.lastSyncedAt.map { RelativeTime.ago(Date().timeIntervalSince($0)) }
             ?? (model.summary.isUnlocked ? String(localized: "Never") : "—")

@@ -191,6 +191,7 @@ extension SessionManagerTests {
 
     @Test func syncRebuildsTheIndex() async throws {
         let manager = try await unlockedManager()
+        try await settled(manager)
         try await manager.sync()
         #expect(try commands().suffix(4) == ["sync", "list", "list", "list"])
         #expect(await manager.search("GitHub").first?.entry.name == "GitHub")

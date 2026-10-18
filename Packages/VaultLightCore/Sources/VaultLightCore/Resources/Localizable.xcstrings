@@ -1,7 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%lld d ago" : {},
+    "%lld d ago" : {
+
+    },
     "%lld days" : {
       "localizations" : {
         "en" : {
@@ -24,7 +26,9 @@
         }
       }
     },
-    "%lld h ago" : {},
+    "%lld h ago" : {
+
+    },
     "%lld hours" : {
       "localizations" : {
         "en" : {
@@ -47,7 +51,9 @@
         }
       }
     },
-    "%lld min ago" : {},
+    "%lld min ago" : {
+
+    },
     "%lld minutes" : {
       "localizations" : {
         "en" : {
@@ -70,20 +76,48 @@
         }
       }
     },
-    "Another user could change the bw binary or a folder on its way, so VaultLight won’t run it. Fix its ownership and permissions, or choose another location in Settings." : {},
-    "Bitwarden CLI is out of date" : {},
-    "Bitwarden CLI isn’t safe to use" : {},
-    "Bitwarden CLI not found" : {},
-    "Can’t reach Bitwarden. Check your internet connection." : {},
-    "Can’t reach the Bitwarden server" : {},
-    "Can’t reach this server. Check the address and that the server is running." : {},
-    "Code copied" : {},
-    "Copy failed" : {},
-    "Copy failed · clipboard unchanged" : {},
-    "Email or master password is incorrect." : {},
-    "Enter the master password for %@." : {},
-    "Enter the server’s full address, like https://vault.example.com." : {},
-    "Enter your master password." : {},
+    "Another user could change the bw binary or a folder on its way, so VaultLight won’t run it. Fix its ownership and permissions, or choose another location in Settings." : {
+
+    },
+    "Bitwarden CLI is out of date" : {
+
+    },
+    "Bitwarden CLI isn’t safe to use" : {
+
+    },
+    "Bitwarden CLI not found" : {
+
+    },
+    "Can’t reach Bitwarden. Check your internet connection." : {
+
+    },
+    "Can’t reach the Bitwarden server" : {
+
+    },
+    "Can’t reach this server. Check the address and that the server is running." : {
+
+    },
+    "Code copied" : {
+
+    },
+    "Copy failed" : {
+
+    },
+    "Copy failed · clipboard unchanged" : {
+
+    },
+    "Email or master password is incorrect." : {
+
+    },
+    "Enter the master password for %@." : {
+
+    },
+    "Enter the server’s full address, like https://vault.example.com." : {
+
+    },
+    "Enter your master password." : {
+
+    },
     "Found bw %@ at %@." : {
       "localizations" : {
         "en" : {
@@ -94,48 +128,144 @@
         }
       }
     },
-    "Found bw %@." : {},
-    "Locked" : {},
-    "Looked at %@. Change it in Settings." : {},
-    "Looked in /opt/homebrew/bin and /usr/local/bin. A custom path can be set in Settings." : {},
-    "Master password required" : {},
-    "Master password required after restart" : {},
-    "No matches for “%@”" : {},
-    "No one-time code for this item" : {},
-    "No password for this item" : {},
-    "No username for this item" : {},
-    "No website for this item" : {},
-    "Not signed in" : {},
-    "Offline — showing cached vault" : {},
-    "Open VaultLight to set up" : {},
-    "Password copied" : {},
-    "Refused %@." : {},
-    "Refused the bw at the configured location." : {},
-    "Something went wrong" : {},
-    "Stored session expired" : {},
-    "Stored session no longer works" : {},
-    "Sync failed" : {},
-    "Sync failed — last synced %@" : {},
-    "Synced %@" : {},
-    "Syncing…" : {},
-    "That code didn’t work. Enter the code from the latest email." : {},
-    "That code didn’t work. Enter the current code from your app." : {},
-    "That didn’t work. Try again." : {},
-    "Touch ID unlocks" : {},
-    "Touch ID unlocks · session expires in %@" : {},
-    "Unlocked" : {},
-    "Username copied" : {},
-    "Vault is locked" : {},
-    "VaultLight keeps your master password for 5 minutes at most. Sign in again." : {},
-    "VaultLight needs Bitwarden CLI %@ or later. Upgrade it with Homebrew, then open this panel again." : {},
-    "VaultLight uses the Bitwarden command-line tool for every vault action. Install it with Homebrew, then open this panel again." : {},
-    "Wrong master password. Try again." : {},
-    "bw didn’t respond within 15 s" : {},
-    "bw didn’t respond within 15 s. Try again." : {},
-    "client_id or client_secret is incorrect." : {},
-    "has one-time code" : {},
-    "just now" : {},
-    "synced %@" : {}
+    "Found bw %@." : {
+
+    },
+    "Getting code…" : {
+
+    },
+    "Getting password…" : {
+
+    },
+    "Loading folders…" : {
+
+    },
+    "Locked" : {
+
+    },
+    "Looked at %@. Change it in Settings." : {
+
+    },
+    "Looked in /opt/homebrew/bin and /usr/local/bin. A custom path can be set in Settings." : {
+
+    },
+    "Master password required" : {
+
+    },
+    "Master password required after restart" : {
+
+    },
+    "No matches for “%@”" : {
+
+    },
+    "No one-time code for this item" : {
+
+    },
+    "No password for this item" : {
+
+    },
+    "No username for this item" : {
+
+    },
+    "No website for this item" : {
+
+    },
+    "Not signed in" : {
+
+    },
+    "Offline — showing cached vault" : {
+
+    },
+    "Open VaultLight to set up" : {
+
+    },
+    "Password copied" : {
+
+    },
+    "Refused %@." : {
+
+    },
+    "Refused the bw at the configured location." : {
+
+    },
+    "Something went wrong" : {
+
+    },
+    "Stored session expired" : {
+
+    },
+    "Stored session no longer works" : {
+
+    },
+    "Sync failed" : {
+
+    },
+    "Sync failed — last synced %@" : {
+
+    },
+    "Synced %@" : {
+
+    },
+    "Syncing…" : {
+
+    },
+    "That code didn’t work. Enter the code from the latest email." : {
+
+    },
+    "That code didn’t work. Enter the current code from your app." : {
+
+    },
+    "That didn’t work. Try again." : {
+
+    },
+    "Touch ID unlocks" : {
+
+    },
+    "Touch ID unlocks · session expires in %@" : {
+
+    },
+    "Unlocked" : {
+
+    },
+    "Updating search…" : {
+
+    },
+    "Username copied" : {
+
+    },
+    "Vault is locked" : {
+
+    },
+    "VaultLight keeps your master password for 5 minutes at most. Sign in again." : {
+
+    },
+    "VaultLight needs Bitwarden CLI %@ or later. Upgrade it with Homebrew, then open this panel again." : {
+
+    },
+    "VaultLight uses the Bitwarden command-line tool for every vault action. Install it with Homebrew, then open this panel again." : {
+
+    },
+    "Wrong master password. Try again." : {
+
+    },
+    "bw didn’t respond within 15 s" : {
+
+    },
+    "bw didn’t respond within 15 s. Try again." : {
+
+    },
+    "client_id or client_secret is incorrect." : {
+
+    },
+    "has one-time code" : {
+
+    },
+    "just now" : {
+
+    },
+    "synced %@" : {
+
+    }
   },
   "version" : "1.0"
 }

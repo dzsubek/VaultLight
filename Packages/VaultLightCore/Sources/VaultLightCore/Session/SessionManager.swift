@@ -20,11 +20,11 @@ public actor SessionManager {
     var backgroundSyncInterval: Duration?
 
     private var session: SessionKey?
-    private var index: SearchIndex?
+    var index: SearchIndex?
     private var authenticatedAt: Date?
     /// Creation date of the stored session this one came from; its maximum age also ends the in-memory session.
     private var storedSessionCreatedAt: Date?
-    private var generation = 0
+    private(set) var generation = 0
     var account = AccountRecord()
     /// The background loop: one sync after unlock, then one per interval.
     var syncTask: Task<Void, Never>?
@@ -119,7 +119,8 @@ public actor SessionManager {
         let generation = generation
         let key = try await client.unlock(password: masterPassword)
         progress(.vaultUnlocked)
-        let listing = try await client.listVault(session: key)
+        // Items only: search opens now, folder and organization names follow in the background.
+        let entries = try await client.listEntries(session: key)
         guard generation == self.generation else { return try await refreshState() }
         let createdAt = clock.now()
         var saved = true
@@ -139,7 +140,7 @@ public actor SessionManager {
             }
             return try await refreshState()
         }
-        install(key, listing: listing, storedSessionCreatedAt: createdAt)
+        install(key, entries: entries, storedSessionCreatedAt: createdAt)
         account.storedSessionExpiresAt =
             saved ? createdAt.addingTimeInterval(policy.settings.storedMaximumAge.seconds) : nil
         progress(.indexBuilt(logins: index?.count ?? 0))
@@ -149,7 +150,11 @@ public actor SessionManager {
     /// Before the prompt only a date known without user presence ends the session; the date read with the key is
     /// authoritative. Reads the stored session behind Touch ID and confirms `bw` still accepts it (spec 3.4 steps 3–5).
     /// Throws `SessionStoreError.cancelled` when the user dismisses the sheet; the stored session is kept.
-    public func unlockWithStoredSession(reason: String) async throws -> VaultState {
+    /// `keyRead` runs once the sheet succeeded and the key is about to be tried, so the panel can say the vault is
+    /// opening while `bw list items` runs.
+    public func unlockWithStoredSession(
+        reason: String, keyRead: @Sendable () -> Void = {}
+    ) async throws -> VaultState {
         let generation = generation
         let precheck = try await storedSessionVerdict()
         guard precheck == .valid else { return try await lockedState(storedSession: precheck) }
@@ -164,24 +169,24 @@ public actor SessionManager {
         let verdict = try await storedSessionVerdict(createdAt: read.createdAt)
         guard verdict == .valid else { return try await lockedState(storedSession: verdict) }
         let key = read.key
+        keyRead()
         try await client.checkVersion()
-        let status = try await client.status(session: key)
-        account.remember(status)
-        let state = status.state
-        guard !isSuperseded(since: generation) else { return try await refreshState() }
-        switch state {
-        case .unlocked:
-            break
-        case .locked:
+        // A successful `bw list items` confirms `bw` still accepts the session (spec 3.4 step 4); a separate
+        // `bw status` would cost another few seconds.
+        let entries: [VaultEntry]
+        do {
+            entries = try await client.listEntries(session: key)
+        } catch BWError.locked {
+            guard !isSuperseded(since: generation) else { return try await refreshState() }
             try await store.deleteSession()
             return .needsMasterPassword(.sessionRejected)
-        case .unauthenticated:
+        } catch BWError.unauthenticated {
+            guard !isSuperseded(since: generation) else { return try await refreshState() }
             try await store.deleteSession()
             return .needsOnboarding
         }
-        let listing = try await client.listVault(session: key)
         guard !isSuperseded(since: generation) else { return try await refreshState() }
-        install(key, listing: listing, storedSessionCreatedAt: read.createdAt)
+        install(key, entries: entries, storedSessionCreatedAt: read.createdAt)
         return .unlocked
     }
 
@@ -269,13 +274,13 @@ public actor SessionManager {
         let generation = generation
         let running = Task { try await rebuild(afterSyncWith: session, generation: generation) }
         runningSync = running
-        updateSyncStatus { $0.isSyncing = true }
+        updateSyncStatus { $0.activity = .syncing }
         let result = await running.result
         guard generation == self.generation else { throw BWError.locked }
         runningSync = nil
         let now = clock.now()
         updateSyncStatus { status in
-            status.isSyncing = false
+            status.activity = nil
             switch result {
             case .success:
                 status.lastSyncedAt = now
@@ -300,14 +305,15 @@ extension SessionManager {
         try await client.sync(session: session)
         // Cleared while `bw sync` ran: never list the decrypted vault for a session that is gone.
         guard generation == self.generation, !Task.isCancelled else { throw BWError.locked }
+        updateSyncStatus { $0.activity = .refreshing }
         let rebuilt = try await client.listVault(session: session)
         guard generation == self.generation else { throw BWError.locked }
         index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
     }
 
-    private func install(_ key: SessionKey, listing: VaultListing, storedSessionCreatedAt: Date) {
+    private func install(_ key: SessionKey, entries: [VaultEntry], storedSessionCreatedAt: Date) {
         session = key
-        index = SearchIndex(entries: listing.entries, folders: listing.folders, organizations: listing.organizations)
+        index = SearchIndex(entries: entries)
         authenticatedAt = clock.now()
         self.storedSessionCreatedAt = storedSessionCreatedAt
         startWatchdog()
@@ -373,7 +379,7 @@ extension SessionManager {
         if let failure { throw failure }
     }
 
-    private func withSession<T: Sendable>(
+    func withSession<T: Sendable>(
         _ body: (BWClient, SessionKey) async throws -> T
     ) async throws -> T {
         guard enforcePolicy(), let session else { throw BWError.locked }

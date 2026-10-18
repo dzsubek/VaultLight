@@ -80,10 +80,14 @@ struct PanelFooterView: View {
 
     private func syncLine(_ line: SyncLine) -> some View {
         HStack(spacing: 8) {
-            StatusDot(color: line.tone.color)
+            if line.tone == .busy {
+                FooterSpinner()
+            } else {
+                StatusDot(color: line.tone.color)
+            }
             Text(line.text)
                 .font(.system(size: PanelMetrics.footerFontSize))
-                .foregroundStyle(line.tone == .neutral ? .secondary : .primary)
+                .foregroundStyle(line.tone == .neutral || line.tone == .busy ? .secondary : .primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
             if line.offersRetry, let onSyncNow {
@@ -106,6 +110,8 @@ struct PanelFooterView: View {
             Circle().fill(Theme.amber).frame(width: 8, height: 8)
         case .copyFailed, .clipboardWriteFailed, .timedOut, .locked:
             Circle().fill(Theme.red).frame(width: 8, height: 8)
+        case .gettingPassword, .gettingCode:
+            FooterSpinner()
         case .idle:
             EmptyView()
         }
@@ -140,7 +146,7 @@ struct PanelFooterView: View {
 extension SyncLine.Tone {
     var color: Color {
         switch self {
-        case .neutral: Color.secondary.opacity(0.6)
+        case .neutral, .busy: Color.secondary.opacity(0.6)
         case .warning: Theme.amber
         case .error: Theme.red
         }

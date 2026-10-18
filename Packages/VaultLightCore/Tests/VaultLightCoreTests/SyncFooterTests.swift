@@ -8,8 +8,10 @@ import Testing
 struct SyncFooterTests {
     let now = Date(timeIntervalSince1970: 1_792_224_000)
 
-    func status(syncedAgo seconds: TimeInterval?, failure: SyncFailure? = nil, syncing: Bool = false) -> SyncStatus {
-        SyncStatus(lastSyncedAt: seconds.map { now.addingTimeInterval(-$0) }, failure: failure, isSyncing: syncing)
+    func status(
+        syncedAgo seconds: TimeInterval?, failure: SyncFailure? = nil, activity: SyncActivity? = nil
+    ) -> SyncStatus {
+        SyncStatus(lastSyncedAt: seconds.map { now.addingTimeInterval(-$0) }, failure: failure, activity: activity)
     }
 
     @Test func syncedShowsTheTimeSinceTheLastSync() {
@@ -35,16 +37,21 @@ struct SyncFooterTests {
                 == SyncLine(tone: .error, text: "Sync failed", offersRetry: true))
     }
 
-    @Test func aRunningSyncKeepsTheLastLine() {
-        #expect(status(syncedAgo: 180, syncing: true).footerLine(now: now)?.text == "Synced 3 min ago")
-        #expect(status(syncedAgo: 180, failure: .failed, syncing: true).footerLine(now: now)?.tone == .error)
+    /// Background work shows a spinner and what runs, over the last result (the `bw` calls take seconds each).
+    @Test func backgroundWorkShowsWhatRuns() {
+        #expect(
+            status(syncedAgo: 180, activity: .syncing).footerLine(now: now)
+                == SyncLine(tone: .busy, text: "Syncing…", offersRetry: false))
+        #expect(status(syncedAgo: nil, activity: .loadingDetails).footerLine(now: now)?.text == "Loading folders…")
+        #expect(status(syncedAgo: 180, activity: .refreshing).footerLine(now: now)?.text == "Updating search…")
+        #expect(status(syncedAgo: 180, failure: .failed, activity: .syncing).footerLine(now: now)?.tone == .busy)
+        #expect(SyncStatus().footerLine(now: now) == nil)
     }
 
-    @Test func theFirstSyncShowsSyncing() {
-        #expect(
-            status(syncedAgo: nil, syncing: true).footerLine(now: now)
-                == SyncLine(tone: .neutral, text: "Syncing…", offersRetry: false))
-        #expect(SyncStatus().footerLine(now: now) == nil)
+    @Test func onlyASyncAndItsRebuildCountAsSyncing() {
+        #expect(SyncStatus(activity: .syncing).isSyncing)
+        #expect(SyncStatus(activity: .refreshing).isSyncing)
+        #expect(!SyncStatus(activity: .loadingDetails).isSyncing)
     }
 
     /// A clock that jumped back never shows a negative age.

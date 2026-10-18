@@ -42,6 +42,10 @@ public enum PanelFooter: Sendable, Equatable {
     case usernameCopied
     case passwordCopied
     case codeCopied
+    /// `bw get password` is running; it takes seconds.
+    case gettingPassword
+    /// `bw get totp` is running.
+    case gettingCode
     case noPassword
     case noTOTP
     case noUsername
@@ -59,6 +63,8 @@ public enum PanelFooter: Sendable, Equatable {
         case .usernameCopied: String(localized: "Username copied", bundle: .module)
         case .passwordCopied: String(localized: "Password copied", bundle: .module)
         case .codeCopied: String(localized: "Code copied", bundle: .module)
+        case .gettingPassword: String(localized: "Getting password…", bundle: .module)
+        case .gettingCode: String(localized: "Getting code…", bundle: .module)
         case .noPassword: String(localized: "No password for this item", bundle: .module)
         case .noTOTP: String(localized: "No one-time code for this item", bundle: .module)
         case .noUsername: String(localized: "No username for this item", bundle: .module)
@@ -228,6 +234,7 @@ public final class PanelViewModel {
         isBusy = true
         defer { isBusy = false }
         let startedIn = epoch
+        show(kind == .password ? .gettingPassword : .gettingCode)
         do {
             let value = try await fetch(kind, id: entry.id)
             guard startedIn == epoch else { return .stayOpen }

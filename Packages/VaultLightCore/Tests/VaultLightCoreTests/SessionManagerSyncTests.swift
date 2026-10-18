@@ -18,7 +18,7 @@ extension SessionManagerTests {
     func settled(_ manager: SessionManager, syncs: Int = 1) async throws {
         try await eventually {
             let status = await manager.syncStatus()
-            return try count(of: "sync") >= syncs && !status.isSyncing
+            return try count(of: "sync") >= syncs && status.activity == nil
         }
     }
 
@@ -97,7 +97,7 @@ extension SessionManagerTests {
         clock.advance(by: 90)
         try await manager.sync()
         let synced = await manager.syncStatus()
-        #expect(synced == SyncStatus(lastSyncedAt: clock.now, failure: nil, isSyncing: false))
+        #expect(synced == SyncStatus(lastSyncedAt: clock.now))
         // The stream carries the latest status to its one listener.
         var updates = manager.syncStatusUpdates.makeAsyncIterator()
         #expect(await updates.next() == synced)
