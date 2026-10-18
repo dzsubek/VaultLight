@@ -1,7 +1,8 @@
 import Carbon.HIToolbox
+import VaultLightCore
 
-/// The global shortcut ⌘⇧Space, registered with Carbon `RegisterEventHotKey`, which needs no Accessibility
-/// permission (spec 4.1).
+/// The global shortcut (⌘⇧Space by default, spec 4.1), registered with Carbon `RegisterEventHotKey`, which needs no
+/// Accessibility permission.
 @MainActor
 final class HotKey {
     private let onPress: @MainActor () -> Void
@@ -18,8 +19,9 @@ final class HotKey {
         if let handlerRef { RemoveEventHandler(handlerRef) }
     }
 
-    /// Returns `false` when the system refuses the shortcut (another app owns it).
-    func register() -> Bool {
+    /// Returns `false` when the system refuses the shortcut (another app owns it). Replaces any earlier
+    /// registration either way.
+    func register(_ shortcut: HotKeyShortcut) -> Bool {
         stop()
         var spec = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
@@ -32,7 +34,7 @@ final class HotKey {
 
         let identifier = EventHotKeyID(signature: OSType(0x564C_484B), id: 1)  // "VLHK"
         let status = RegisterEventHotKey(
-            UInt32(kVK_Space), UInt32(cmdKey | shiftKey), identifier, GetApplicationEventTarget(), 0, &hotKeyRef)
+            shortcut.keyCode, shortcut.modifiers, identifier, GetApplicationEventTarget(), 0, &hotKeyRef)
         if status != noErr {
             stop()
             return false

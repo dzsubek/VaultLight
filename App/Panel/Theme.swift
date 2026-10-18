@@ -18,6 +18,19 @@ enum Theme {
     static let amber = Color(nsColor: .systemOrange)
     static let red = Color(nsColor: .systemRed)
     static let chipFill = Color.primary.opacity(0.07)
+    /// Text fields and secondary buttons: white in light mode, a lifted gray in dark mode.
+    static let fieldFill = Color(
+        nsColor: dynamic(light: .white, dark: NSColor(white: 1, alpha: 0.08)))
+    static let hairline = Color.primary.opacity(0.14)
+    /// The selected radio row and the command box (designs 09, 10).
+    static let tintedRowFill = Color(
+        nsColor: dynamic(
+            light: NSColor(srgbRed: 0.0, green: 0.51, blue: 0.56, alpha: 0.16),
+            dark: NSColor(srgbRed: 0.25, green: 0.78, blue: 0.82, alpha: 0.18)))
+    static let wellFill = Color.primary.opacity(0.05)
+    /// Behind the Settings cards and the About window (design 14, 15).
+    static let groupedBackground = Color(
+        nsColor: dynamic(light: NSColor(white: 0.925, alpha: 1), dark: NSColor(white: 0.17, alpha: 1)))
 
     static func dynamic(light: NSColor, dark: NSColor) -> NSColor {
         NSColor(name: nil) { appearance in

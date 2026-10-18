@@ -56,7 +56,7 @@ public enum PanelFooter: Sendable, Equatable {
         case .idle: nil
         case .usernameCopied: "Username copied"
         case .passwordCopied: "Password copied"
-        case .codeCopied: "One-time code copied"
+        case .codeCopied: "Code copied"
         case .noPassword: "No password for this item"
         case .noTOTP: "No one-time code for this item"
         case .noUsername: "No username for this item"

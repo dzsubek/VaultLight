@@ -4,42 +4,70 @@ import SwiftUI
 import VaultLightCore
 import os
 
-/// Owns the panel, its view model and the vault state it shows (spec 4). The panel is created once and reused:
+/// Owns the panel, its view models and the vault state it shows (spec 3.1, 4). The panel is created once and reused:
 /// closing calls `orderOut` and keeps the view hierarchy.
 @MainActor
 @Observable
 final class PanelController {
-    private static let logger = Logger(subsystem: "com.vaultlight.app", category: "panel")
+    static let logger = Logger(subsystem: "com.vaultlight.app", category: "panel")
 
     let viewModel: PanelViewModel
+    let onboarding: OnboardingModel
     /// Drives the footer's "Clears in" countdown (design 04).
     let clipboard: ClipboardManager
     private(set) var content: PanelContent
+    /// Email, server and stored-session expiry for the locked screens (designs 06, 07).
+    private(set) var summary = VaultSummary()
+    /// The `bw` path a setup problem names (design 09 small print).
+    private(set) var setupPath: String?
+    /// For the onboarding unlock step's "Touch ID unlocks VaultLight for up to …" (design 12).
+    var storedMaximumAge = SessionSettings.StoredMaximumAge.sevenDays
+    /// The setup command was just copied: the button says "Copied" for 2 s (design 09).
+    private(set) var commandCopied = false
+    /// The warning after a failed sync (spec 7.4 "Offline"); search keeps working.
+    var syncNotice: SyncNotice?
     /// The search field's text. The view sends changes to the view model through `submitQuery()`.
     var queryText = ""
-    /// Bumped on every open so the view puts focus in the search field again.
+    /// Bumped on every open so the view puts focus in its first field again.
     private(set) var openCount = 0
-    /// Bumped on every close so the locked view drops a half-typed master password (no secret outlives
-    /// the panel).
+    /// Bumped on every close so the locked and onboarding views drop half-typed secrets (no secret
+    /// outlives the panel).
     private(set) var closeCount = 0
+    /// The height a non-search screen reported; the panel is sized to it.
+    var reportedHeight: CGFloat = 0 {
+        didSet {
+            if reportedHeight != oldValue { applyFrame() }
+        }
+    }
+
+    /// The vault state the panel last learned, for the menu (design 13).
+    @ObservationIgnored var onStateChange: ((VaultState?) -> Void)?
+    /// ⌘, from the panel; the setup screens open the Vault tab at the `bw` path (design 09).
+    @ObservationIgnored var onOpenSettings: ((SettingsTab?) -> Void)?
+    /// The configured `bw` path, for the "not found" small print.
+    @ObservationIgnored var configuredBWPath: () -> String? = { nil }
 
     @ObservationIgnored let panel: SearchPanel
-    @ObservationIgnored private let session: SessionManager?
-    @ObservationIgnored private var keyMonitor: Any?
+    @ObservationIgnored let session: SessionManager?
+    @ObservationIgnored private let client: BWClient?
+    @ObservationIgnored var keyMonitor: Any?
     @ObservationIgnored private var anchor = CGPoint.zero
     @ObservationIgnored private var isOpening = false
     /// The Touch ID sheet is up: resigning key must not close the panel under it.
     @ObservationIgnored private var isAuthenticating = false
     @ObservationIgnored private var tasks: [Task<Void, Never>] = []
+    @ObservationIgnored private var commandCopiedReset: Task<Void, Never>?
 
     init(
-        vault: any PanelVault, clipboard: ClipboardManager, session: SessionManager?,
-        openURL: @escaping @MainActor (URL) -> Void = { _ = NSWorkspace.shared.open($0) },
+        vault: any PanelVault, clipboard: ClipboardManager, session: SessionManager?, client: BWClient? = nil,
+        onboarding: OnboardingModel, openURL: @escaping @MainActor (URL) -> Void = { _ = NSWorkspace.shared.open($0) },
         opaqueBackground: Bool = false
     ) {
         viewModel = PanelViewModel(vault: vault, system: SystemActions(clipboard: clipboard, openURL: openURL))
         self.clipboard = clipboard
         self.session = session
+        self.client = client
+        self.onboarding = onboarding
         content = session == nil ? .unlocked : .checking
         panel = SearchPanel(contentSize: CGSize(width: PanelMetrics.width, height: PanelMetrics.lockedHeight))
         panel.install(SearchView(controller: self), opaqueBackground: opaqueBackground)
@@ -55,12 +83,6 @@ final class PanelController {
                     self?.sessionWasCleared()
                 }
             })
-    }
-
-    /// The production wiring: a `SessionManager` over the default `BWClient` and the Keychain store.
-    static func makeProduction(clipboard: ClipboardManager) -> PanelController {
-        let session = SessionManager(client: BWClient(), store: KeychainSessionStore())
-        return PanelController(vault: session, clipboard: clipboard, session: session)
     }
 
     // MARK: Open and close (spec 4.1–4.3)
@@ -90,21 +112,12 @@ final class PanelController {
         installKeyMonitor()
         isOpening = false
         // Locked: ask `bw` and the Keychain only now that the panel is on screen (Touch ID needs it there).
-        if let session, content != .unlocked { await refreshLockedState(session) }
-    }
-
-    private func refreshLockedState(_ session: SessionManager) async {
-        do {
-            await apply(try await session.refreshState())
-        } catch {
-            Self.logger.error("Vault state failed: \(diagnosticKind(of: error), privacy: .public)")
-            content = .problem(PanelProblem(error))
-            applyFrame()
-        }
+        if session != nil, content != .unlocked { await refreshLockedState() }
     }
 
     func close() {
         closeCount += 1
+        onboarding.panelDidClose()
         removeKeyMonitor()
         panel.orderOut(nil)
     }
@@ -120,9 +133,30 @@ final class PanelController {
     private func sessionWasCleared() {
         viewModel.reset()
         queryText = ""
+        syncNotice = nil
         let wasShowingSearch = content == .unlocked
         if wasShowingSearch { content = .checking }
         if wasShowingSearch, !isOpening { close() }
+        Task { await refreshSummary() }
+    }
+
+    /// Shows onboarding at once (after Sign Out or a server change, spec 3.5, 8), without asking `bw`.
+    func showOnboarding() {
+        viewModel.reset()
+        content = .onboarding
+        onStateChange?(.needsOnboarding)
+        applyFrame()
+        Task { await refreshSummary() }
+    }
+
+    func markCommandCopied() {
+        commandCopied = true
+        commandCopiedReset?.cancel()
+        commandCopiedReset = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.commandCopied = false
+        }
     }
 
     // MARK: Layout
@@ -130,16 +164,115 @@ final class PanelController {
     /// Resizes the panel for the current content. The top edge stays where `PanelPlacement` puts it, so the panel
     /// grows downward and the search field doesn't move.
     func applyFrame() {
-        let height =
-            content == .unlocked
-            ? PanelMetrics.height(unlockedRowCount: viewModel.results.count, hasSection: viewModel.section != nil)
-            : PanelMetrics.lockedHeight
+        let height: CGFloat
+        if content == .unlocked {
+            height = PanelMetrics.height(
+                unlockedRowCount: viewModel.results.count, hasSection: viewModel.section != nil)
+        } else {
+            height = reportedHeight > 0 ? reportedHeight : PanelMetrics.lockedHeight
+        }
         let size = CGSize(width: PanelMetrics.width, height: height)
-        let frame = PanelPlacement.frame(
-            panelSize: size, screens: NSScreen.screens.map(\.visibleFrame), mouse: anchor)
+        let frame = PanelPlacement.frame(panelSize: size, screens: NSScreen.screens.map(\.visibleFrame), mouse: anchor)
         panel.setFrame(frame, display: true)
     }
 
+    // MARK: Vault state (spec 3.1)
+
+    func refreshLockedState() async {
+        guard let session else { return }
+        do {
+            await apply(try await session.refreshState())
+        } catch {
+            await show(error)
+        }
+    }
+
+    private func show(_ error: any Error) async {
+        Self.logger.error("Vault state failed: \(diagnosticKind(of: error), privacy: .public)")
+        let screen = PanelScreen(error: error)
+        if case .setupProblem(let problem) = screen {
+            setupPath = problem == .notInstalled ? configuredBWPath() : (try? await client?.executable())?.url.path
+        }
+        if screen == .onboarding { onStateChange?(.needsOnboarding) }
+        content = PanelContent(screen)
+        applyFrame()
+    }
+
+    func apply(_ state: VaultState) async {
+        onStateChange?(state)
+        await refreshSummary()
+        switch state {
+        case .unlocked:
+            let wasUnlocked = content == .unlocked
+            content = .unlocked
+            if !wasUnlocked { await viewModel.panelWillOpen() }
+            applyFrame()
+        case .storedSessionAvailable:
+            content = .touchID(canceled: false)
+            applyFrame()
+            await unlockWithTouchID()
+        case .needsMasterPassword(let reason):
+            // Signed in during onboarding but not unlocked yet: stay on onboarding's unlock step (design 12).
+            content = onboarding.step == .unlock ? .onboarding : .masterPassword(reason, attempts: 0, busy: false)
+            applyFrame()
+        case .needsOnboarding:
+            // `bw` was logged out meanwhile: the unlock step can't work any more.
+            if onboarding.step == .unlock || onboarding.step == .finishing { onboarding.restart() }
+            content = .onboarding
+            applyFrame()
+        }
+    }
+
+    func refreshSummary() async {
+        guard let session else { return }
+        summary = await session.summary()
+    }
+
+    /// Reads the stored session behind Touch ID (spec 3.4). Return retries after a cancel.
+    func unlockWithTouchID() async {
+        guard let session, panel.isVisible, !isAuthenticating else { return }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+        do {
+            await apply(try await session.unlockWithStoredSession(reason: "unlock your vault"))
+        } catch SessionStoreError.cancelled, SessionStoreError.authenticationFailed {
+            content = .touchID(canceled: true)
+        } catch {
+            await show(error)
+        }
+    }
+
+    /// `bw unlock` with the master password (design 07). The caller clears its field before calling; the password
+    /// lives only in this call's parameter.
+    func unlock(masterPassword: String) async {
+        guard let session, case .masterPassword(let reason, let attempts, false) = content else { return }
+        content = .masterPassword(reason, attempts: attempts, busy: true)
+        do {
+            await apply(try await session.unlock(masterPassword: masterPassword))
+        } catch BWError.invalidPassword {
+            content = .masterPassword(reason, attempts: attempts + 1, busy: false)
+        } catch {
+            await show(error)
+        }
+    }
+
+    /// Onboarding's last step (design 12): the checklist, then search in place.
+    func finishOnboarding(masterPassword: String) async {
+        guard content == .onboarding else { return }
+        guard await onboarding.unlock(masterPassword: masterPassword) else { return }
+        // Long enough to see the ticked checklist.
+        try? await Task.sleep(for: .milliseconds(600))
+        guard content == .onboarding, panel.isVisible else {
+            onStateChange?(.unlocked)
+            await refreshSummary()
+            return
+        }
+        await apply(.unlocked)
+    }
+}
+
+/// Search and its keys (spec 5.4).
+extension PanelController {
     // MARK: Search
 
     /// Sends `queryText` to the view model, then resizes for the new result count.
@@ -165,147 +298,43 @@ final class PanelController {
         handle(await viewModel.activate(index: index))
     }
 
-    private func handle(_ outcome: PanelOutcome) {
+    /// "Try again" in the footer (design 16).
+    func retry() async {
+        guard content == .unlocked else { return }
+        handle(await viewModel.retry())
+    }
+
+    func handle(_ outcome: PanelOutcome) {
         switch outcome {
         case .stayOpen:
             break
         case .close:
             close()
         case .closeAndOpenSettings:
-            close()
-            // Settings doesn't exist yet.
-            Self.logger.debug("settings requested")
+            openSettings()
         }
     }
 
-    // MARK: Vault state (interim)
-
-    private func apply(_ state: VaultState) async {
-        switch state {
-        case .unlocked:
-            let wasUnlocked = content == .unlocked
-            content = .unlocked
-            if !wasUnlocked { await viewModel.panelWillOpen() }
-            applyFrame()
-        case .storedSessionAvailable:
-            content = .touchID(canceled: false)
-            applyFrame()
-            await unlockWithTouchID()
-        case .needsMasterPassword:
-            content = .masterPassword(failed: false, busy: false)
-            applyFrame()
-        case .needsOnboarding:
-            content = .needsOnboarding
-            applyFrame()
+    /// ⌘,: closes the panel and opens Settings, at the `bw` path when `bw` is the problem (design 09).
+    func openSettings() {
+        close()
+        if case .setupProblem = content {
+            onOpenSettings?(.vault)
+        } else {
+            onOpenSettings?(nil)
         }
     }
 
-    /// Reads the stored session behind Touch ID (spec 3.4). Return retries after a cancel.
-    func unlockWithTouchID() async {
-        guard let session, panel.isVisible, !isAuthenticating else { return }
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-        do {
-            await apply(try await session.unlockWithStoredSession(reason: "unlock VaultLight"))
-        } catch SessionStoreError.cancelled, SessionStoreError.authenticationFailed {
-            content = .touchID(canceled: true)
-        } catch {
-            Self.logger.error("Vault state failed: \(diagnosticKind(of: error), privacy: .public)")
-            content = .problem(PanelProblem(error))
+    #if DEBUG
+        /// Screenshot mode: shows a screen with invented data, without a session.
+        func showDemo(
+            _ demoContent: PanelContent, summary demoSummary: VaultSummary = VaultSummary(),
+            setupPath path: String? = nil
+        ) {
+            content = demoContent
+            summary = demoSummary
+            setupPath = path
             applyFrame()
         }
-    }
-
-    /// `bw unlock` with the master password. The caller clears its field before calling; the password lives
-    /// only in this call's parameter.
-    func unlock(masterPassword: String) async {
-        guard let session, case .masterPassword = content else { return }
-        content = .masterPassword(failed: false, busy: true)
-        do {
-            await apply(try await session.unlock(masterPassword: masterPassword))
-        } catch BWError.invalidPassword {
-            content = .masterPassword(failed: true, busy: false)
-        } catch {
-            Self.logger.error("Unlock failed: \(diagnosticKind(of: error), privacy: .public)")
-            content = .problem(PanelProblem(error))
-            applyFrame()
-        }
-    }
-
-    // MARK: Keys (spec 5.4)
-
-    private func installKeyMonitor() {
-        removeKeyMonitor()
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let handled = MainActor.assumeIsolated { self?.handleKeyDown(event) ?? false }
-            return handled ? nil : event
-        }
-    }
-
-    private func removeKeyMonitor() {
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-        keyMonitor = nil
-    }
-
-    /// Returns whether the event was consumed.
-    private func handleKeyDown(_ event: NSEvent) -> Bool {
-        guard event.window === panel else { return false }
-        // An input method composing text owns Return, arrows and Escape.
-        if let editor = panel.firstResponder as? NSTextView, editor.hasMarkedText() { return false }
-        guard let key = Self.key(for: event) else {
-            return Self.isTab(event)  // Tab does nothing
-        }
-        switch content {
-        case .unlocked:
-            Task { await perform(key) }
-            return true
-        case .touchID:
-            if key == .returnKey { Task { await unlockWithTouchID() } }
-            if key == .escape { close() }
-            return key == .returnKey || key == .escape
-        default:
-            // Interim locked views: Escape closes; Return belongs to the secure field.
-            if key == .escape {
-                close()
-                return true
-            }
-            return false
-        }
-    }
-
-    private static func isTab(_ event: NSEvent) -> Bool {
-        event.keyCode == 48 && event.modifierFlags.isDisjoint(with: .deviceIndependentFlagsMask)
-    }
-
-    /// Key codes: 126 up, 125 down, 36 Return, 76 keypad Enter, 53 Escape.
-    static func key(for event: NSEvent) -> PanelKey? {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            .subtracting([.numericPad, .function])
-        if modifiers.isEmpty { return plainKey(keyCode: event.keyCode) }
-        guard modifiers == .command, let character = event.charactersIgnoringModifiers?.lowercased() else {
-            return nil
-        }
-        return commandKey(character)
-    }
-
-    private static func plainKey(keyCode: UInt16) -> PanelKey? {
-        switch keyCode {
-        case 126: .up
-        case 125: .down
-        case 36, 76: .returnKey
-        case 53: .escape
-        default: nil
-        }
-    }
-
-    private static func commandKey(_ character: String) -> PanelKey? {
-        switch character {
-        case "p": .copyPassword
-        case "u": .copyUsername
-        case "t": .copyTOTP
-        case "o": .openURL
-        case ",": .openSettings
-        default: nil
-        }
-    }
+    #endif
 }

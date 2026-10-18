@@ -11,10 +11,16 @@ struct SearchView: View {
             if controller.content == .unlocked {
                 UnlockedView(controller: controller)
             } else {
-                LockedView(controller: controller)
+                // Its own height, reported so the controller fits the panel to it.
+                NonSearchView(controller: controller)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .reportsHeight()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onPreferenceChange(ContentHeightKey.self) { height in
+            Task { @MainActor in controller.reportedHeight = height }
+        }
     }
 }
 
@@ -33,7 +39,8 @@ private struct UnlockedView: View {
             PanelFooterView(
                 footer: model.footer, hasSelection: model.hasSelection, isTOTPAvailable: model.isTOTPAvailable,
                 secondsUntilClear: controller.clipboard.secondsUntilClear,
-                clearAfter: controller.clipboard.clearAfter)
+                clearAfter: controller.clipboard.clearAfter, syncNotice: controller.syncNotice,
+                onRetry: model.canRetry ? { Task { await controller.retry() } } : nil)
         }
     }
 

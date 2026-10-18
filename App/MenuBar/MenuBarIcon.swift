@@ -14,6 +14,39 @@ enum MenuBarIcon {
         return image
     }
 
+    /// The glyph with an amber warning badge (design 13 state 3). Not a template, so the badge keeps its color; the
+    /// glyph is drawn in the label color of the appearance it is drawn for.
+    static func badged(symbolName: String, description: String) -> NSImage {
+        let badgeConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
+            .applying(.init(paletteColors: [.systemOrange]))
+        let glyph = symbol(symbolName)
+        let badge = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(badgeConfiguration)
+        let glyphWidth = glyph?.size.width ?? 16
+        let badgeWidth = badge?.size.width ?? 10
+        let size = NSSize(width: ceil(glyphWidth + 3 + badgeWidth), height: height)
+        let image = NSImage(size: size, flipped: false) { rect in
+            if let glyph {
+                let tinted = NSImage(size: glyph.size, flipped: false) { glyphRect in
+                    glyph.draw(in: glyphRect)
+                    NSColor.labelColor.set()
+                    glyphRect.fill(using: .sourceAtop)
+                    return true
+                }
+                tinted.draw(
+                    in: NSRect(origin: NSPoint(x: 0, y: (rect.height - glyph.size.height) / 2), size: glyph.size))
+            }
+            if let badge {
+                badge.draw(
+                    in: NSRect(
+                        origin: NSPoint(x: glyphWidth + 3, y: (rect.height - badge.size.height) / 2), size: badge.size))
+            }
+            return true
+        }
+        image.accessibilityDescription = description
+        return image
+    }
+
     static func countdown(symbolName: String, seconds: Int) -> NSImage {
         let label = "\(seconds)s"
         // Wide enough for two digits, so the item doesn't shift when the count drops below 10.

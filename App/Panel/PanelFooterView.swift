@@ -12,6 +12,10 @@ struct PanelFooterView: View {
     /// From `ClipboardManager`: seconds until the copied secret is cleared, `nil` when none is pending.
     let secondsUntilClear: Int?
     let clearAfter: Duration
+    /// The warning after a failed sync, shown while nothing else is (spec 7.4 "Offline").
+    var syncNotice: SyncNotice?
+    /// "Try again" after a failed copy or a timeout (design 16); `nil` when there is nothing to repeat.
+    var onRetry: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -41,10 +45,23 @@ struct PanelFooterView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                if let onRetry {
+                    Button("Try again", action: onRetry)
+                        .buttonStyle(CompactButtonStyle())
+                }
             }
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .contain)
         } else if let secondsUntilClear {
             countdown(secondsUntilClear)
+        } else if let syncNotice {
+            HStack(spacing: 8) {
+                StatusDot(color: syncNotice == .offline ? Theme.amber : Theme.red)
+                Text(syncNotice.message)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -83,19 +100,9 @@ struct PanelFooterView: View {
     }
 
     private func hint(key: String, label: String, dimmed: Bool) -> some View {
-        HStack(spacing: 6) {
-            Text(key)
-                .font(.system(size: 12, weight: .medium))
-                .padding(.horizontal, 5)
-                .frame(minWidth: 22, minHeight: 20)
-                .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.chipFill))
-            Text(label).font(.system(size: 13))
-        }
-        .foregroundStyle(.secondary)
-        .opacity(dimmed ? 0.4 : 1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(key == "↵" ? "Return" : key), \(label)")
-        .accessibilityHidden(dimmed)
+        KeyHint(key: key, label: label)
+            .opacity(dimmed ? 0.4 : 1)
+            .accessibilityHidden(dimmed)
     }
 }
 
