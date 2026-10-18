@@ -264,9 +264,17 @@ public actor BWClient {
             let environment = Self.environment(
                 searchPath: executable.searchPath, home: home, dataDirectory: dataDirectory, secrets: secrets)
             do {
-                return try await ProcessRunner.run(
+                let started = ContinuousClock.now
+                let output = try await ProcessRunner.run(
                     executable.url, arguments: arguments + ["--nointeraction"], environment: environment,
                     timeout: timeout, killGrace: killGrace)
+                // For the spec 10 measurements: the verb from the fixed list and a duration only.
+                let elapsed = ContinuousClock.now - started
+                let milliseconds =
+                    elapsed.components.seconds * 1_000 + elapsed.components.attoseconds / 1_000_000_000_000_000
+                Self.logger.info(
+                    "bw \(Self.verb(of: arguments), privacy: .public) took \(milliseconds, privacy: .public) ms")
+                return output
             } catch {
                 // ProcessRunner throws only when the launch fails: the binary vanished or can't be executed.
                 throw BWError.notInstalled

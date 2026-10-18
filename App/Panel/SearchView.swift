@@ -81,7 +81,9 @@ private struct UnlockedView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 0) {
+                    // Lazy: only the visible rows are built, so a keystroke that replaces all 50 stays in budget
+                    // (spec 10: 30 ms at 5,000 items).
+                    LazyVStack(spacing: 0) {
                         if let section = model.section {
                             Text(section == .recent ? "Recent" : "Favorites")
                                 .font(.system(size: 12.5, weight: .medium))

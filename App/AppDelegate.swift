@@ -23,6 +23,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 return
             }
+            if let file = DemoMeasure.requestedFile() {
+                // Measuring mode (spec 10): the same isolation as screenshot mode.
+                Task { @MainActor in
+                    await DemoMeasure.run(into: file)
+                    NSApplication.shared.terminate(nil)
+                }
+                return
+            }
         #endif
 
         quitOnTerminationSignals()

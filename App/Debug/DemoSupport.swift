@@ -106,6 +106,11 @@
     actor DemoVault: PanelVault {
         private var index: SearchIndex
 
+        /// A vault of generated entries, for the measuring mode.
+        init(entries: [VaultEntry], folders: [VaultFolder]) {
+            index = SearchIndex(entries: entries, folders: folders)
+        }
+
         init() {
             let entries = [
                 VaultEntry(

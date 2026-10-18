@@ -62,4 +62,44 @@ struct SearchPerformanceTests {
         print("slowest keystroke: \(worst.duration) for a \(worst.query.count)-character query")
         #expect(worst.duration <= Self.budget)
     }
+
+    /// Spec 10: index build after unlock ≤ 3 s at 1,000 items. Most of that is `bw list items` itself (measured by
+    /// hand); VaultLight's part, decoding the JSON and building the index, gets a tenth of it.
+    static let indexBuildBudget = Duration.milliseconds(300)
+
+    /// `bw list items` output for `entries`, with the secret fields the real output carries (spec 9.3), invented.
+    static func listItemsJSON(_ entries: [VaultEntry]) throws -> Data {
+        let items: [[String: Any]] = entries.enumerated().map { number, entry in
+            [
+                "object": "item", "id": entry.id, "type": 1, "name": entry.name, "favorite": entry.favorite,
+                "folderId": entry.folderId as Any, "organizationId": entry.organizationId as Any, "reprompt": 0,
+                "notes": "Invented note \(number) with a few words of text.",
+                "fields": [["name": "PIN", "value": "\(number)", "type": 1]],
+                "login": [
+                    "username": entry.username as Any, "password": "invented-password-\(number)",
+                    "totp": entry.hasTOTP ? "otpauth://totp/x?secret=INVENTED" : NSNull(),
+                    "uris": entry.uris.map { ["match": NSNull(), "uri": $0] },
+                ],
+                "revisionDate": "2026-09-30T10:00:00.000Z", "collectionIds": [],
+            ]
+        }
+        return try JSONSerialization.data(withJSONObject: items)
+    }
+
+    @Test func aThousandItemListingIsDecodedAndIndexedWithinBudget() throws {
+        let data = try Self.listItemsJSON(Self.generatedEntries(count: 1_000))
+        let clock = ContinuousClock()
+        var slowest = Duration.zero
+        for _ in 0..<5 {
+            var index: SearchIndex?
+            let duration = try clock.measure {
+                let listed = try JSONDecoder().decode([VaultEntry.Listed].self, from: data)
+                index = SearchIndex(entries: listed.compactMap(\.entry))
+            }
+            #expect(index?.count == 1_000)
+            slowest = max(slowest, duration)
+        }
+        print("index build, 1,000 items (\(data.count / 1_024) KB of JSON): slowest \(slowest)")
+        #expect(slowest <= Self.indexBuildBudget)
+    }
 }
