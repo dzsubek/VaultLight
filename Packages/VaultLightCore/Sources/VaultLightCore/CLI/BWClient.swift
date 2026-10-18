@@ -114,9 +114,13 @@ public actor BWClient {
         }
         var arguments = ["login", email, "--passwordenv", Self.passwordVariable]
         if let twoFactor {
-            guard !twoFactor.code.isEmpty, twoFactor.code.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) })
-            else { throw BWError.invalidArgument }
-            arguments += ["--method", String(twoFactor.method.rawValue), "--code", twoFactor.code]
+            arguments += ["--method", String(twoFactor.method.rawValue)]
+            if let code = twoFactor.code {
+                guard !code.isEmpty, code.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else {
+                    throw BWError.invalidArgument
+                }
+                arguments += ["--code", code]
+            }
         }
         try await run(arguments, secrets: [Self.passwordVariable: password])
     }
@@ -229,33 +233,6 @@ public actor BWClient {
         }
     }
 
-    /// `kind at path` for a `DecodingError`, with no values from the decoded data.
-    static func decodingFailure(_ error: any Error) -> String {
-        guard let error = error as? DecodingError else { return diagnosticKind(of: error) }
-        let (kind, context): (String, DecodingError.Context)
-        switch error {
-        case .typeMismatch(_, let ctx): (kind, context) = ("typeMismatch", ctx)
-        case .valueNotFound(_, let ctx): (kind, context) = ("valueNotFound", ctx)
-        case .keyNotFound(let key, let ctx): (kind, context) = ("keyNotFound(\(key.stringValue))", ctx)
-        case .dataCorrupted(let ctx): (kind, context) = ("dataCorrupted", ctx)
-        @unknown default: return "unknownDecodingError"
-        }
-        let path = context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }.joined(separator: ".")
-        return "\(kind) at \(path.isEmpty ? "top level" : path)"
-    }
-
-    /// The command verb for logs, from a fixed list so nothing else from `arguments` can reach clear text.
-    private static func verb(of arguments: [String]) -> String {
-        let verbs: Set = ["--version", "status", "config", "login", "unlock", "list", "get", "sync", "lock", "logout"]
-        guard let first = arguments.first, verbs.contains(first) else { return "other" }
-        if first == "list" || first == "get", arguments.count > 1,
-            ["items", "folders", "organizations", "password", "totp"].contains(arguments[1])
-        {
-            return "\(first) \(arguments[1])"
-        }
-        return first
-    }
-
     private func list<T: Decodable & Sendable>(_ object: String, session: SessionKey) async throws -> [T] {
         let output = try await run(["list", object], secrets: Self.sessionEnvironment(session))
         return try Self.decode([T].self, from: output.stdout)
@@ -265,27 +242,6 @@ public actor BWClient {
         guard UUID(uuidString: id) != nil else { throw BWError.invalidArgument }
         let output = try await run(["get", field, id, "--raw"], secrets: Self.sessionEnvironment(session))
         return try Self.text(output.stdout)
-    }
-
-    /// Creates the CLI data folder as 0700, or tightens an existing one; refuses one owned by someone else.
-    /// It holds the CLI's encrypted vault and keys (spec 7.1 "Isolated CLI state").
-    private static func preparePrivateDirectory(_ directory: URL) throws {
-        let manager = FileManager.default
-        do {
-            try manager.createDirectory(
-                at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            let attributes = try manager.attributesOfItem(atPath: directory.path)
-            guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
-                throw BWError.unknown("The bw data folder belongs to another user")
-            }
-            if (attributes[.posixPermissions] as? NSNumber)?.intValue != 0o700 {
-                try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
-            }
-        } catch let error as BWError {
-            throw error
-        } catch {
-            throw BWError.unknown("Can't prepare the bw data folder")
-        }
     }
 
     /// Runs one `bw` call after every earlier call has finished, and maps failures to `BWError`.
@@ -340,5 +296,57 @@ public actor BWClient {
             """)
         Self.logger.error("bw failure detail: \(String(describing: error), privacy: .private)")
         throw error
+    }
+}
+
+extension BWClient {
+    /// `kind at path` for a `DecodingError`, with no values from the decoded data.
+    static func decodingFailure(_ error: any Error) -> String {
+        guard let error = error as? DecodingError else { return diagnosticKind(of: error) }
+        let (kind, context): (String, DecodingError.Context)
+        switch error {
+        case .typeMismatch(_, let ctx): (kind, context) = ("typeMismatch", ctx)
+        case .valueNotFound(_, let ctx): (kind, context) = ("valueNotFound", ctx)
+        case .keyNotFound(let key, let ctx): (kind, context) = ("keyNotFound(\(key.stringValue))", ctx)
+        case .dataCorrupted(let ctx): (kind, context) = ("dataCorrupted", ctx)
+        @unknown default: return "unknownDecodingError"
+        }
+        let path = context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }.joined(separator: ".")
+        return "\(kind) at \(path.isEmpty ? "top level" : path)"
+    }
+
+    /// The command verb for logs, from a fixed list so nothing else from `arguments` can reach clear text.
+    private static func verb(of arguments: [String]) -> String {
+        let verbs: Set = ["--version", "status", "config", "login", "unlock", "list", "get", "sync", "lock", "logout"]
+        guard let first = arguments.first, verbs.contains(first) else { return "other" }
+        if first == "list" || first == "get", arguments.count > 1,
+            ["items", "folders", "organizations", "password", "totp"].contains(arguments[1])
+        {
+            return "\(first) \(arguments[1])"
+        }
+        return first
+    }
+}
+
+extension BWClient {
+    /// Creates the CLI data folder as 0700, or tightens an existing one; refuses one owned by someone else.
+    /// It holds the CLI's encrypted vault and keys (spec 7.1 "Isolated CLI state").
+    private static func preparePrivateDirectory(_ directory: URL) throws {
+        let manager = FileManager.default
+        do {
+            try manager.createDirectory(
+                at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let attributes = try manager.attributesOfItem(atPath: directory.path)
+            guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
+                throw BWError.unknown("The bw data folder belongs to another user")
+            }
+            if (attributes[.posixPermissions] as? NSNumber)?.intValue != 0o700 {
+                try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            }
+        } catch let error as BWError {
+            throw error
+        } catch {
+            throw BWError.unknown("Can't prepare the bw data folder")
+        }
     }
 }

@@ -67,9 +67,11 @@ public struct BWTwoFactor: Sendable {
     }
 
     public let method: Method
-    public let code: String
+    /// `nil` asks `bw` to start the method without a code: for email, the server sends one ("Send a code by
+    /// email", design 11).
+    public let code: String?
 
-    public init(method: Method, code: String) {
+    public init(method: Method, code: String?) {
         self.method = method
         self.code = code
     }
