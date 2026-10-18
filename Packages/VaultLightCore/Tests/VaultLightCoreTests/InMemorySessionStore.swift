@@ -3,7 +3,9 @@ import Foundation
 @testable import VaultLightCore
 
 /// `SessionStore` fake for unit tests: nothing reaches the Keychain. `readError` makes the next reads fail, as a
-/// cancelled or failed Touch ID sheet would.
+/// cancelled or failed Touch ID sheet would. `storedSessionOverride` makes `storedSession()` report what the real
+/// Keychain does for a `.userPresence` item (`.dateUnknown`) while `readSession` still returns the real date, and
+/// `storedSessionError` makes it throw.
 actor InMemorySessionStore: SessionStore {
     struct Item: Equatable {
         let key: SessionKey
@@ -15,6 +17,8 @@ actor InMemorySessionStore: SessionStore {
     private(set) var deleteCount = 0
     private var readError: SessionStoreError?
     private var deleteError: SessionStoreError?
+    private var storedSessionOverride: StoredSession?
+    private var storedSessionError: SessionStoreError?
 
     init(_ item: Item? = nil) {
         self.item = item
@@ -28,15 +32,26 @@ actor InMemorySessionStore: SessionStore {
         deleteError = error
     }
 
-    func storedSessionDate() async throws -> Date? {
-        item?.createdAt
+    func setStoredSessionOverride(_ stored: StoredSession?) {
+        storedSessionOverride = stored
     }
 
-    func readSession(reason: String) async throws -> SessionKey {
+    func setStoredSessionError(_ error: SessionStoreError?) {
+        storedSessionError = error
+    }
+
+    func storedSession() async throws -> StoredSession {
+        if let storedSessionError { throw storedSessionError }
+        if let storedSessionOverride { return storedSessionOverride }
+        guard let item else { return .none }
+        return .created(item.createdAt)
+    }
+
+    func readSession(reason: String) async throws -> StoredSessionRead {
         readReasons.append(reason)
         if let readError { throw readError }
         guard let item else { throw SessionStoreError.notFound }
-        return item.key
+        return StoredSessionRead(key: item.key, createdAt: item.createdAt)
     }
 
     func saveSession(_ key: SessionKey, createdAt: Date) async throws {

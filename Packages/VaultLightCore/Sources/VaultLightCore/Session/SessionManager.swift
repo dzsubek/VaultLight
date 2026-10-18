@@ -126,7 +126,7 @@ public actor SessionManager {
     public func unlock(masterPassword: String) async throws -> VaultState {
         let generation = generation
         let key = try await client.unlock(password: masterPassword)
-        let listing = try await listVault(session: key)
+        let listing = try await client.listVault(session: key)
         guard generation == self.generation else { return try await refreshState() }
         let createdAt = clock.now()
         do {
@@ -147,21 +147,22 @@ public actor SessionManager {
         return .unlocked
     }
 
-    /// Reads the stored session behind Touch ID and confirms `bw` still accepts it (spec 3.4 steps 3–5).
+    /// Before the prompt only a date known without user presence ends the session; the date read with the key is
+    /// authoritative. Reads the stored session behind Touch ID and confirms `bw` still accepts it (spec 3.4 steps 3–5).
     /// Throws `SessionStoreError.cancelled` when the user dismisses the sheet; the stored session is kept.
     public func unlockWithStoredSession(reason: String) async throws -> VaultState {
         let generation = generation
-        guard let createdAt = try await store.storedSessionDate() else {
-            return try await lockedState(storedSession: nil)
-        }
-        let verdict = try await storedSessionVerdict(createdAt: createdAt)
-        guard verdict == .valid else { return try await lockedState(storedSession: verdict) }
-        let key: SessionKey
+        let precheck = try await storedSessionVerdict()
+        guard precheck == .valid else { return try await lockedState(storedSession: precheck) }
+        let read: StoredSessionRead
         do {
-            key = try await store.readSession(reason: reason)
+            read = try await store.readSession(reason: reason)
         } catch SessionStoreError.notFound {
             return try await refreshState()
         }
+        let verdict = try await storedSessionVerdict(createdAt: read.createdAt)
+        guard verdict == .valid else { return try await lockedState(storedSession: verdict) }
+        let key = read.key
         switch try await client.status(session: key).state {
         case .unlocked:
             break
@@ -172,9 +173,9 @@ public actor SessionManager {
             try await store.deleteSession()
             return .needsOnboarding
         }
-        let listing = try await listVault(session: key)
+        let listing = try await client.listVault(session: key)
         guard generation == self.generation else { return try await refreshState() }
-        install(key, listing: listing, storedSessionCreatedAt: createdAt)
+        install(key, listing: listing, storedSessionCreatedAt: read.createdAt)
         return .unlocked
     }
 
@@ -256,7 +257,7 @@ public actor SessionManager {
         try await withSession { client, session in
             try await client.sync(session: session)
             let generation = self.generation
-            let rebuilt = try await self.listVault(session: session)
+            let rebuilt = try await client.listVault(session: session)
             guard generation == self.generation else { throw BWError.locked }
             self.index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
         }
@@ -266,17 +267,23 @@ public actor SessionManager {
 extension SessionManager {
     // MARK: Private
 
-    /// What `bw list` returned, decoded to metadata only.
-    private struct Listing {
-        let entries: [VaultEntry]
-        let folders: [VaultFolder]
-        let organizations: [VaultOrganization]
-    }
-
-    /// The stored session's verdict, or `nil` when there is none. An expired one is deleted and `bw` locked.
+    /// The stored session's verdict, or `nil` when there is none. An expired one is deleted and `bw` locked. A
+    /// session whose date isn't readable yet is `.valid`: Touch ID decides. A store that can't be read at all is
+    /// deleted and treated as none, so the master password is still possible.
     private func storedSessionVerdict() async throws -> SessionVerdict? {
-        guard let createdAt = try await store.storedSessionDate() else { return nil }
-        return try await storedSessionVerdict(createdAt: createdAt)
+        let stored: StoredSession
+        do {
+            stored = try await store.storedSession()
+        } catch {
+            Self.logger.error("Reading the stored session failed: \(diagnosticKind(of: error), privacy: .private)")
+            try? await store.deleteSession()
+            return nil
+        }
+        switch stored {
+        case .none: return nil
+        case .dateUnknown: return .valid
+        case .created(let createdAt): return try await storedSessionVerdict(createdAt: createdAt)
+        }
     }
 
     private func storedSessionVerdict(createdAt: Date) async throws -> SessionVerdict {
@@ -305,14 +312,7 @@ extension SessionManager {
         return try await client.status().state == .unauthenticated ? .needsOnboarding : .needsMasterPassword(reason)
     }
 
-    private func listVault(session: SessionKey) async throws -> Listing {
-        let listed: [VaultEntry.Listed] = try await client.listItems(session: session)
-        let folders: [VaultFolder] = try await client.listFolders(session: session)
-        let organizations: [VaultOrganization] = try await client.listOrganizations(session: session)
-        return Listing(entries: listed.compactMap(\.entry), folders: folders, organizations: organizations)
-    }
-
-    private func install(_ key: SessionKey, listing: Listing, storedSessionCreatedAt: Date) {
+    private func install(_ key: SessionKey, listing: VaultListing, storedSessionCreatedAt: Date) {
         session = key
         index = SearchIndex(entries: listing.entries, folders: listing.folders, organizations: listing.organizations)
         authenticatedAt = clock.now()
