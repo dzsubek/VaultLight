@@ -30,7 +30,18 @@ struct FinishingStepView: View {
         .stepInsets()
     }
 
-    private enum RowState { case done, working, waiting, warning }
+    private enum RowState {
+        case done, working, waiting, warning
+
+        var spoken: String {
+            switch self {
+            case .done: "Done"
+            case .working: "In progress"
+            case .waiting: "Waiting"
+            case .warning: "Warning"
+            }
+        }
+    }
 
     /// Done rows get a check; the first one not done spins; the rest wait.
     private func rowStates(_ checklist: OnboardingModel.Checklist) -> [RowState] {
@@ -66,9 +77,11 @@ struct FinishingStepView: View {
             }
             .font(.system(size: 17))
             .frame(width: 18, height: 18)
+            .accessibilityHidden(true)
             Text(title).font(.system(size: 14))
             if let detail { Text(detail).font(.system(size: 14)).foregroundStyle(.tertiary) }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityValue(state.spoken)
     }
 }

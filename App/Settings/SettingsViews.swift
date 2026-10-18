@@ -169,11 +169,26 @@ private struct ShortcutRow: View {
                     lineWidth: Theme.borderWidth(failed: isError && recording, active: recording))
         )
         .contentShape(Rectangle())
-        .onTapGesture { recording ? stopRecording() : startRecording() }
+        .onTapGesture(perform: toggleRecording)
+        // Full Keyboard Access: Tab reaches the recorder, Space or Return starts recording.
+        .focusable()
+        .onKeyPress(keys: [.space, .return]) { _ in
+            toggleRecording()
+            return .handled
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Shortcut, \(model.settings.settings.hotKey.displayString)")
-        .accessibilityHint("Click, then press the new shortcut")
+        .accessibilityHint("Press, then press the new shortcut")
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { toggleRecording() }
+    }
+
+    private func toggleRecording() {
+        if recording {
+            stopRecording()
+        } else {
+            startRecording()
+        }
     }
 
     private func startRecording() {

@@ -230,6 +230,10 @@ private struct ServerStepView: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityLabel(title)
+        .accessibilityAction {
+            model.serverOption = option
+            model.clearFailure()
+        }
     }
 }
 

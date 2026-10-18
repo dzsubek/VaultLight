@@ -35,8 +35,9 @@ struct ResultRow: View {
                 .fill(isSelected ? Theme.selectionFill : .clear)
         )
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(result.spokenDescription)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -134,15 +135,6 @@ struct ResultRow: View {
         .frame(width: 22, height: 22)
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.teal))
         .accessibilityHidden(true)
-    }
-
-    private var accessibilityText: String {
-        var parts = [result.entry.name]
-        if let username = result.entry.username, !username.isEmpty { parts.append(username) }
-        if let host = result.entry.primaryHost { parts.append(host) }
-        if let place = result.organizationName ?? result.folderName { parts.append(place) }
-        if result.entry.hasTOTP { parts.append("has one-time code") }
-        return parts.joined(separator: ", ")
     }
 }
 

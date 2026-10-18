@@ -43,6 +43,12 @@ private struct UnlockedView: View {
                 onRetry: model.canRetry ? { Task { await controller.retry() } } : nil,
                 onSyncNow: { Task { await controller.perform(.syncNow) } })
         }
+        .onChange(of: model.spokenSelection) {
+            if let spoken = model.spokenSelection { VoiceOver.announce(spoken) }
+        }
+        .onChange(of: model.footer) {
+            if let message = model.footer.message { VoiceOver.announce(message) }
+        }
     }
 
     private var searchField: some View {
@@ -93,6 +99,9 @@ private struct UnlockedView: View {
                             .id(result.id)
                             .onTapGesture(count: 2) { Task { await controller.activate(index: index) } }
                             .onTapGesture { controller.select(index: index) }
+                            // VoiceOver's default action is the double-click: copy the password (spec 5.3).
+                            .accessibilityAction { Task { await controller.activate(index: index) } }
+                            .accessibilityHint("Copies the password")
                         }
                     }
                     .padding(.horizontal, PanelMetrics.listPadding)

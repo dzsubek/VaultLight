@@ -159,6 +159,7 @@ private struct MethodPicker: View {
             .contentShape(Rectangle())
             .onTapGesture { method = value }
             .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { method = value }
     }
 }
 
