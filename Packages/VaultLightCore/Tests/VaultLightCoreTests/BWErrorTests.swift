@@ -25,6 +25,31 @@ struct BWErrorTests {
         #expect(BWError.classify(stderr: stderr, exitStatus: 1, secrets: []) == expected)
     }
 
+    /// `bw` 2025.x unlocks through the Bitwarden SDK, which logs Rust tracing lines before the message.
+    static let sdkWrongPasswordOutput = """
+        ERROR bitwarden_crypto::keys::master_key: error=The decryption operation failed
+
+        ERROR bitwarden_core::client::internal: error=Cryptography error, The decryption operation failed
+
+        ERROR bitwarden_core::key_management::crypto: error=Cryptography error, The decryption operation failed
+
+        Cryptography error, The decryption operation failed
+        """
+
+    @Test func sdkDecryptionFailureIsAWrongMasterPassword() {
+        #expect(BWError.classify(stderr: Self.sdkWrongPasswordOutput, exitStatus: 1, secrets: []) == .invalidPassword)
+    }
+
+    @Test func knownMessagesAreFoundAfterOtherLines() {
+        let stderr = "(node:4242) Warning: something unrelated\nVault is locked.\n"
+        #expect(BWError.classify(stderr: stderr, exitStatus: 1, secrets: []) == .locked)
+    }
+
+    @Test func unknownSkipsSDKTracingLines() {
+        let stderr = "ERROR bitwarden_core::client::internal: error=Something odd\n\nSomething odd happened\n"
+        #expect(BWError.classify(stderr: stderr, exitStatus: 1, secrets: []) == .unknown("Something odd happened"))
+    }
+
     @Test func stripsColourCodesBeforeMatching() {
         let colored = "\u{1B}[91mVault is locked.\u{1B}[39m\n"
         #expect(BWError.classify(stderr: colored, exitStatus: 1, secrets: []) == .locked)

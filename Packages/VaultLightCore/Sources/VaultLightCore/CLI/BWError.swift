@@ -37,13 +37,18 @@ public enum BWError: Error, Equatable, Sendable {
 extension BWError {
     /// Maps a failed call's stderr to a typed error. `secrets` are the values the call passed in its environment.
     static func classify(stderr: String, exitStatus: Int32, secrets: [String]) -> BWError {
-        let message = firstLine(of: stderr)
-        let text = message.lowercased()
+        let lines = messageLines(of: stderr)
+        let message = lines.first ?? ""
+        // Known messages are looked for in every line: `bw` can print warnings or SDK tracing lines first.
+        let text = lines.joined(separator: "\n").lowercased()
         func has(_ needles: String...) -> Bool { needles.contains { text.contains($0) } }
 
         if has("you are not logged in") { return .unauthenticated }
         if has("vault is locked") { return .locked }
-        if has("invalid master password", "username or password is incorrect") { return .invalidPassword }
+        // `bw` 2025.x unlocks through the Bitwarden SDK, which reports a wrong master password as a failed decryption.
+        if has("invalid master password", "username or password is incorrect", "the decryption operation failed") {
+            return .invalidPassword
+        }
         if has("client_id or client_secret is incorrect") { return .invalidAPIKey }
         if has("two-step token is invalid") { return .invalidTwoFactorCode }
         if has("two-step login code is required", "code is required") { return .twoFactorRequired }
@@ -61,12 +66,15 @@ extension BWError {
 
     private static let maximumMessageLength = 200
 
-    /// First non-empty line, without ANSI colour codes.
-    private static func firstLine(of output: String) -> String {
+    /// Non-empty lines without ANSI colour codes, minus the SDK's Rust tracing lines
+    /// (`ERROR bitwarden_core::client::internal: …`), so the first one is `bw`'s own message.
+    private static func messageLines(of output: String) -> [String] {
         let plain = output.replacing(/\u{1B}\[[0-9;]*m/, with: "")
-        return plain.split(whereSeparator: \.isNewline)
-            .lazy.map { $0.trimmingCharacters(in: .whitespaces) }
-            .first { !$0.isEmpty } ?? ""
+        let lines = plain.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let messages = lines.filter { $0.firstMatch(of: /^(ERROR|WARN|INFO|DEBUG|TRACE) [A-Za-z0-9_]+::/) == nil }
+        return messages.isEmpty ? lines : messages
     }
 
     private static func redact(_ message: String, secrets: [String]) -> String {

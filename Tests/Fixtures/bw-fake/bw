@@ -256,7 +256,10 @@ def main(argv):
         if state["status"] == "unauthenticated":
             fail("You are not logged in.")
         if password_from_env() != config["master_password"]:
-            fail("Invalid master password.")
+            # Real bw 2025.x unlocks through the Bitwarden SDK and reports a wrong password like this.
+            fail("ERROR bitwarden_crypto::keys::master_key: error=The decryption operation failed\n\n"
+                 "ERROR bitwarden_core::client::internal: error=Cryptography error, The decryption operation failed\n\n"
+                 "Cryptography error, The decryption operation failed")
         state["status"] = "unlocked"
         save()
         print(config["session_key"] if raw else "Your vault is now unlocked!")
