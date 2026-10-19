@@ -1,0 +1,138 @@
+# Builds, signs, notarizes and publishes a release when a version tag is pushed.
+# The human supplies the secrets and variables below; this file references them by name only.
+#
+#   secrets:   DEVELOPER_ID_P12_BASE64, DEVELOPER_ID_P12_PASSWORD  Developer ID Application certificate (.p12, base64)
+#              ASC_KEY_P8_BASE64, ASC_KEY_ID, ASC_ISSUER_ID         App Store Connect API key (signing profile + notarization)
+#              TAP_GITHUB_TOKEN                                     token that can push branches and open PRs on dzsubek/homebrew-tap
+#   variables: VL_TEAM_ID, VL_BUNDLE_ID                             Team ID and bundle ID (Configs/Local.xcconfig is not in the repo)
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90  # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Version from the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::The tag must look like v1.2.3"
+            exit 1
+          fi
+          echo "VERSION=${BASH_REMATCH[1]}" >> "$GITHUB_ENV"
+
+      - name: Install tools
+        run: brew install xcodegen swiftlint swift-format xcbeautify shellcheck actionlint
+
+      - name: make check
+        run: make check
+
+      - name: Write the App Store Connect API key
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          umask 077
+          key="$RUNNER_TEMP/AuthKey.p8"
+          echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$key"
+          chmod 600 "$key"
+
+      - name: Import the Developer ID certificate into a temporary keychain
+        env:
+          P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          umask 077
+          keychain="$RUNNER_TEMP/vaultlight-signing.keychain-db"
+          p12="$RUNNER_TEMP/developer-id.p12"
+          echo "KEYCHAIN_PATH=$keychain" >> "$GITHUB_ENV"
+          keychain_password=$(openssl rand -hex 24)
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$P12_BASE64" | base64 --decode > "$p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          rm -f "$p12"
+
+      - name: Store the notarization credentials
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcrun notarytool store-credentials vaultlight-ci \
+            --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" \
+            --keychain "$KEYCHAIN_PATH"
+
+      - name: Build, sign, notarize
+        env:
+          VL_TEAM_ID: ${{ vars.VL_TEAM_ID }}
+          VL_BUNDLE_ID: ${{ vars.VL_BUNDLE_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          NOTARY_KEYCHAIN: ${{ env.KEYCHAIN_PATH }}
+        run: scripts/release.sh --version "$VERSION" --notary-profile vaultlight-ci
+
+      - name: Read the archive checksum
+        run: |
+          read -r sha _ < ".build/release/VaultLight-$VERSION.zip.sha256"
+          echo "SHA256=$sha" >> "$GITHUB_ENV"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" ".build/release/VaultLight-$VERSION.zip" \
+            --verify-tag \
+            --title "VaultLight $VERSION" \
+            --notes "VaultLight $VERSION. Unofficial; not affiliated with Bitwarden.
+
+          SHA-256 of VaultLight-$VERSION.zip: $SHA256"
+
+      - name: Open the Homebrew tap pull request
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          gh auth setup-git
+          gh repo clone dzsubek/homebrew-tap tap
+          git -C tap config user.name "github-actions[bot]"
+          git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C tap checkout -b "vaultlight-$VERSION"
+          mkdir -p tap/Casks
+          scripts/render-cask.sh "$VERSION" "$SHA256" tap/Casks/vaultlight.rb
+          git -C tap add Casks/vaultlight.rb
+          git -C tap commit -m "vaultlight $VERSION"
+          git -C tap push origin "vaultlight-$VERSION"
+          cd tap
+          gh pr create --repo dzsubek/homebrew-tap --head "vaultlight-$VERSION" \
+            --title "vaultlight $VERSION" \
+            --body "Bumps VaultLight to $VERSION (SHA-256 $SHA256). Opened by the release workflow."
+
+      - name: Remove the signing material
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
+          if [ -n "${ASC_KEY_PATH:-}" ]; then rm -f "$ASC_KEY_PATH"; fi
+          rm -f "$RUNNER_TEMP/developer-id.p12"
