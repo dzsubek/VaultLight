@@ -5,6 +5,15 @@
 #              ASC_KEY_P8_BASE64, ASC_KEY_ID, ASC_ISSUER_ID         App Store Connect API key (signing profile + notarization)
 #              TAP_GITHUB_TOKEN                                     token that can push branches and open PRs on dzsubek/homebrew-tap
 #   variables: VL_TEAM_ID, VL_BUNDLE_ID                             Team ID and bundle ID (Configs/Local.xcconfig is not in the repo)
+#
+# How to keep the secrets safe:
+#   - Store them in the `release` GitHub environment, not as repository secrets. Give that environment a
+#     deployment rule that allows `v*` tags only, plus a required reviewer. Add a tag ruleset that limits who
+#     can create `v*` tags. The `check` job below has no access to any secret.
+#   - TAP_GITHUB_TOKEN is a fine-grained personal access token scoped to dzsubek/homebrew-tap only, with
+#     Contents and Pull requests set to read/write, and an expiry date.
+#   - The App Store Connect API key gets the lowest role that can notarize and manage the Developer ID
+#     provisioning profile (check Apple's current role table when you create it).
 name: Release
 
 on:
@@ -15,9 +24,29 @@ permissions:
   contents: read
 
 jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90  # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Install tools
+        run: brew install xcodegen swiftlint swift-format xcbeautify shellcheck actionlint
+
+      - name: make check
+        run: make check
+
   release:
+    needs: check
     runs-on: macos-latest
     timeout-minutes: 60
+    environment: release
     permissions:
       contents: write
     steps:
@@ -41,10 +70,7 @@ jobs:
           echo "VERSION=${BASH_REMATCH[1]}" >> "$GITHUB_ENV"
 
       - name: Install tools
-        run: brew install xcodegen swiftlint swift-format xcbeautify shellcheck actionlint
-
-      - name: make check
-        run: make check
+        run: brew install xcodegen
 
       - name: Write the App Store Connect API key
         env:
@@ -71,7 +97,7 @@ jobs:
           security create-keychain -p "$keychain_password" "$keychain"
           security set-keychain-settings -lut 21600 "$keychain"
           security unlock-keychain -p "$keychain_password" "$keychain"
-          security import "$p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security import "$p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
           security list-keychains -d user -s "$keychain" login.keychain-db
           rm -f "$p12"
