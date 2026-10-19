@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Direct distribution outside the Mac App Store. Xcode embeds the Developer ID
+	     provisioning profile, which the keychain-access-groups entitlement needs.
+	     scripts/release.sh adds teamID from VL_TEAM_ID when it is set. -->
+	<key>method</key>
+	<string>developer-id</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>signingCertificate</key>
+	<string>Developer ID Application</string>
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>
