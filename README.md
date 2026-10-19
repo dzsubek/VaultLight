@@ -1,0 +1,54 @@
+# VaultLight
+
+A Spotlight-style quick-access panel for your Bitwarden vault on macOS. Press a hotkey from any app, type a few characters, press Return, and the password is on your clipboard.
+
+VaultLight is an unofficial client and is not affiliated with Bitwarden.
+
+- **Keyboard first.** Open the panel with Cmd + Shift + Space (changeable), search, then Return for the password, Cmd + U for the username, Cmd + T for the TOTP code, Cmd + O to open the site.
+- **Works through the official `bw` CLI.** VaultLight starts `bw` for every vault operation and keeps its own CLI login, separate from any `bw` you use in Terminal.
+- **Unlock with Touch ID.** The session key lives in the macOS Keychain behind user presence (Touch ID, Apple Watch or the Mac login password).
+- **Private by default.** No favicons or other network requests of its own, and copied secrets are hidden from clipboard managers and cleared after a timeout.
+
+## Requirements
+
+- macOS 14 (Sonoma) or later
+- [Homebrew](https://brew.sh) and the Bitwarden CLI (`bitwarden-cli`), which the cask installs for you
+
+## Install
+
+```bash
+brew tap dzsubek/tap
+brew trust --tap dzsubek/tap
+brew install --cask dzsubek/tap/vaultlight
+```
+
+Since Homebrew 6.0, Homebrew runs code from a third-party tap only after you trust it, which is what `brew trust --tap dzsubek/tap` does. Read the cask in the tap first if you want to know what it will run.
+
+On first launch, VaultLight asks for your server (Bitwarden US, EU or self-hosted), signs you in with your email and master password or a personal API key, and unlocks the vault. The master password is never stored.
+
+## Update
+
+```bash
+brew update
+brew upgrade --cask vaultlight
+```
+
+There is no in-app updater.
+
+## Uninstall
+
+Remove the session key from the Keychain **first**: choose **Lock and Forget** from the VaultLight menu-bar menu, or **Sign Out…** in Settings. `brew uninstall --zap` cannot reach the data-protection Keychain, so a session key you leave behind stays there until you delete it by hand.
+
+Then:
+
+```bash
+brew uninstall --zap --cask vaultlight
+```
+
+`--zap` also removes `~/Library/Application Support/VaultLight` (the CLI's own data folder), the preferences file and the login item.
+
+## Security
+
+- The search index holds names, usernames, hosts and folders only. A password or TOTP code is fetched when you copy it.
+- Copied secrets are written for this Mac only, marked concealed and transient for clipboard managers, and cleared after the timeout (45 s by default) unless you copied something else meanwhile.
+- The stored session key has a maximum age, can require the master password after a restart, and is cleared from memory on sleep, screen lock, user switch and idle.
