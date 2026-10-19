@@ -57,6 +57,22 @@ validate_args() {
   fi
 }
 
+fail() { echo "error: $*" >&2; exit 1; }
+
+# resolve_identity SETTINGS CASK_FILE: prints "TEAM BUNDLE_ID" from the Release build settings text and
+# fails unless the team is set and the bundle ID is the one the cask quits (its `uninstall quit:` line).
+resolve_identity() {
+  local settings=$1 cask=$2 team bundle cask_bundle
+  team=$(sed -n -E 's/^[[:space:]]*DEVELOPMENT_TEAM = (.*)$/\1/p' <<<"$settings" | head -n 1)
+  bundle=$(sed -n -E 's/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = (.*)$/\1/p' <<<"$settings" | head -n 1)
+  cask_bundle=$(sed -n -E 's/^[[:space:]]*uninstall quit: "([^"]+)".*$/\1/p' "$cask" | head -n 1)
+  [ -n "$team" ] || fail "DEVELOPMENT_TEAM is empty: set VL_TEAM_ID or Configs/Local.xcconfig"
+  [ -n "$bundle" ] || fail "PRODUCT_BUNDLE_IDENTIFIER is empty: set VL_BUNDLE_ID or Configs/Local.xcconfig"
+  [ -n "$cask_bundle" ] || fail "no 'uninstall quit:' bundle ID found in $cask"
+  [ "$bundle" = "$cask_bundle" ] || fail "the bundle ID is '$bundle' but the cask quits '$cask_bundle'; the cask and the app must agree"
+  echo "$team $bundle"
+}
+
 # self_test: runs this script with bad arguments under stubbed tools and expects exit 2 and no tool call.
 self_test() {
   local tmp stubs marker failures=0 script
@@ -115,6 +131,24 @@ self_test() {
     "VL_TEAM_ID=ABCDE12345" "VL_BUNDLE_ID=com.example.app" -- \
     --validate-only --version 1.2.3 --notary-profile p --build-number 7 --output "$tmp/out"
 
+  printf '  uninstall quit: "com.example.app"\n' >"$tmp/cask.rb"
+  identity() { # NAME EXPECTED_OK TEAM BUNDLE
+    local settings out status=0
+    settings=$(printf '    DEVELOPMENT_TEAM = %s\n    PRODUCT_BUNDLE_IDENTIFIER = %s\n' "$3" "$4")
+    out=$( (resolve_identity "$settings" "$tmp/cask.rb") 2>/dev/null) || status=$?
+    if [ "$2" = ok ] && { [ "$status" -ne 0 ] || [ "$out" != "$3 $4" ]; }; then
+      echo "FAIL $1: expected '$3 $4'"; failures=$((failures + 1))
+    elif [ "$2" = reject ] && [ "$status" -eq 0 ]; then
+      echo "FAIL $1: expected a rejection"; failures=$((failures + 1))
+    else
+      echo "ok   $1"
+    fi
+  }
+  identity "identity matching the cask" ok ABCDE12345 com.example.app
+  identity "empty team" reject "" com.example.app
+  identity "bundle ID differing from the cask" reject ABCDE12345 com.other.app
+  identity "empty bundle ID" reject ABCDE12345 ""
+
   if [ "$failures" -ne 0 ]; then
     echo "$failures self-test case(s) failed" >&2
     return 1
@@ -166,7 +200,6 @@ fi
 case $output in /*) ;; *) output="$PWD/$output" ;; esac
 
 step() { echo; echo "==> $*"; }
-fail() { echo "error: $*" >&2; exit 1; }
 
 archive="$output/VaultLight.xcarchive"
 export_dir="$output/export"
@@ -187,6 +220,12 @@ overrides=("MARKETING_VERSION=$version" "CURRENT_PROJECT_VERSION=$build_number")
 
 step "Generate the Xcode project"
 make gen
+
+step "Resolve the signing identity"
+settings=$(xcodebuild -project VaultLight.xcodeproj -scheme VaultLight -configuration Release \
+  "${overrides[@]}" -showBuildSettings 2>/dev/null)
+read -r team bundle <<<"$(resolve_identity "$settings" packaging/vaultlight.rb)"
+echo "team $team, bundle ID $bundle"
 
 step "Archive $version ($build_number)"
 xcodebuild archive \
@@ -211,22 +250,28 @@ step "Verify the signature"
 codesign --verify --deep --strict --verbose=2 "$app"
 details=$(codesign -dvv "$app" 2>&1)
 grep -q '^Authority=Developer ID Application' <<<"$details" || fail "the app is not signed by a Developer ID Application certificate"
+grep -q "^TeamIdentifier=$team\$" <<<"$details" || fail "the signature's TeamIdentifier is not $team"
 grep -Eq 'flags=0x[0-9a-f]+\([^)]*runtime' <<<"$details" || fail "Hardened Runtime is not enabled in the signature"
 entitlements="$output/signed-entitlements.plist"
 codesign -d --entitlements - --xml "$app" >"$entitlements" 2>/dev/null
-/usr/libexec/PlistBuddy -c "Print :keychain-access-groups" "$entitlements" >/dev/null 2>&1 || fail "the signed app lacks keychain-access-groups"
+group=$(/usr/libexec/PlistBuddy -c 'Print :keychain-access-groups:0' "$entitlements" 2>/dev/null || true)
+[ "$group" = "$team.$bundle" ] || fail "keychain-access-groups[0] is '${group:-missing}', expected $team.$bundle"
 for key in com.apple.security.get-task-allow com.apple.security.app-sandbox; do
   if /usr/libexec/PlistBuddy -c "Print :$key" "$entitlements" >/dev/null 2>&1; then
     fail "the signed app has the $key entitlement"
   fi
 done
-[ -f "$app/Contents/embedded.provisionprofile" ] || fail "the app has no embedded provisioning profile"
 plist="$app/Contents/Info.plist"
+[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "$bundle" ] || fail "CFBundleIdentifier is not $bundle"
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$version" ] || fail "CFBundleShortVersionString is not $version"
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$build_number" ] || fail "CFBundleVersion is not $build_number"
-if [ -n "${VL_BUNDLE_ID:-}" ]; then
-  [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "$VL_BUNDLE_ID" ] || fail "CFBundleIdentifier is not $VL_BUNDLE_ID"
-fi
+profile_file="$app/Contents/embedded.provisionprofile"
+[ -f "$profile_file" ] || fail "the app has no embedded provisioning profile"
+profile_plist="$output/embedded-profile.plist"
+security cms -D -i "$profile_file" >"$profile_plist" || fail "the embedded provisioning profile could not be decoded"
+[ "$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$profile_plist" 2>/dev/null || true)" = "$team" ] || fail "the provisioning profile belongs to another team"
+[ "$(/usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$profile_plist" 2>/dev/null || true)" = "true" ] || fail "the provisioning profile is not a Developer ID profile (ProvisionsAllDevices is not true)"
+/usr/libexec/PlistBuddy -c 'Print :Entitlements:keychain-access-groups' "$profile_plist" >/dev/null 2>&1 || fail "the provisioning profile does not grant keychain-access-groups"
 
 step "Notarize"
 ditto -c -k --keepParent "$app" "$notarize_zip"
@@ -246,7 +291,9 @@ fi
 step "Staple and assess"
 xcrun stapler staple "$app"
 xcrun stapler validate "$app"
-spctl --assess --type execute -vv "$app"
+assessment=$(spctl --assess --type execute -vv "$app" 2>&1) || { echo "$assessment" >&2; fail "Gatekeeper rejects the app"; }
+echo "$assessment"
+grep -q '^source=Notarized Developer ID' <<<"$assessment" || fail "Gatekeeper does not report source=Notarized Developer ID"
 
 step "Create the release archive"
 ditto -c -k --keepParent "$app" "$final_zip"
