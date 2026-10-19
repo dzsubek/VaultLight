@@ -11,7 +11,7 @@ SOURCES := App Packages/VaultLightCore/Sources Packages/VaultLightCore/Tests
 SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null || echo "xcrun swift-format")
 BEAUTIFY     := $(shell command -v xcbeautify >/dev/null 2>&1 && echo "| xcbeautify --quiet" || echo "")
 
-.PHONY: help bootstrap gen test-core test-fake-bw perf build build-signed run lint format strings check-strings check clean
+.PHONY: help bootstrap gen test-core test-fake-bw perf build build-signed run lint format strings check-strings check-release check clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n",$$1,$$2}'
@@ -82,7 +82,20 @@ lint: ## SwiftLint + swift-format lint
 format: ## Format Swift sources in place
 	$(SWIFT_FORMAT) format --in-place --recursive --configuration .swift-format $(SOURCES)
 
-check: lint test-fake-bw test-core build check-strings ## Everything CI runs
+check: lint test-fake-bw test-core build check-strings check-release ## Everything CI runs
+
+check-release: ## Lint the release scripts, workflows and cask; check the Release signing config (needs the generated project)
+	@for f in scripts/*.sh; do bash -n "$$f"; done
+	shellcheck scripts/*.sh
+	scripts/check-release-config.sh --self-test
+	scripts/check-release-config.sh
+	scripts/release.sh --self-test
+	@# brew style only applies its cask rules to a file under a Casks/ folder, so render into one.
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; mkdir "$$tmp/Casks"; \
+	scripts/render-cask.sh 0.1.0 0000000000000000000000000000000000000000000000000000000000000000 "$$tmp/Casks/vaultlight.rb"; \
+	ruby -c "$$tmp/Casks/vaultlight.rb" >/dev/null; \
+	if command -v brew >/dev/null 2>&1; then brew style "$$tmp/Casks/vaultlight.rb"; else echo "brew not found: skipping brew style"; fi
+	actionlint
 
 clean: ## Remove build products and the generated project
 	rm -rf .build $(CORE)/.build $(PROJECT)

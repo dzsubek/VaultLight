@@ -7,7 +7,7 @@ VaultLight is an unofficial client and is not affiliated with Bitwarden.
 - **Keyboard first.** Open the panel with Cmd + Shift + Space (changeable), search, then Return for the password, Cmd + U for the username, Cmd + T for the TOTP code, Cmd + O to open the site.
 - **Works through the official `bw` CLI.** VaultLight starts `bw` for every vault operation and keeps its own CLI login, separate from any `bw` you use in Terminal.
 - **Unlock with Touch ID.** The session key lives in the macOS Keychain behind user presence (Touch ID, Apple Watch or the Mac login password).
-- **Private by default.** No favicons or other network requests of its own, and copied secrets are hidden from clipboard managers and cleared after a timeout.
+- **Private by default.** No favicon requests, and copied secrets are hidden from clipboard managers and cleared after a timeout.
 
 ## Requirements
 
