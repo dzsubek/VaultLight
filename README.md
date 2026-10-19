@@ -52,3 +52,15 @@ brew uninstall --zap --cask vaultlight
 - The search index holds names, usernames, hosts and folders only. A password or TOTP code is fetched when you copy it.
 - Copied secrets are written for this Mac only, marked concealed and transient for clipboard managers, and cleared after the timeout (45 s by default) unless you copied something else meanwhile.
 - The stored session key has a maximum age, can require the master password after a restart, and is cleared from memory on sleep, screen lock, user switch and idle.
+
+## License
+
+VaultLight is [Fair Source](https://fair.io) under the [Functional Source License 1.1, MIT Future License](LICENSE.md) (`FSL-1.1-MIT`).
+
+- You may use, copy, modify and redistribute VaultLight for any purpose except a **Competing Use**: making it, or a fork, available to others in a commercial product or service that substitutes for VaultLight or offers the same or substantially similar functionality.
+- Using it yourself, including at work, is permitted, and so are non-commercial forks.
+- Each release also becomes available under the MIT license two years after it is published.
+
+Until a release converts to MIT, VaultLight is source-available, not "open source" in the OSI sense. Its full source is public so anyone can audit it.
+
+VaultLight runs the `bw` CLI you install yourself as a separate program. It does not bundle, link or copy Bitwarden's code. Bitwarden is a trademark of Bitwarden, Inc.

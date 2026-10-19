@@ -70,9 +70,15 @@ struct AboutView: View {
                 Button("Licenses") { showingLicenses = true }
                     .buttonStyle(.link)
                     .popover(isPresented: $showingLicenses) {
-                        Text("VaultLight includes no third-party code.")
-                            .font(.system(size: 12))
-                            .padding(12)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Fair Source under the Functional Source License 1.1 (FSL-1.1-MIT).")
+                            Text("Each release becomes MIT-licensed two years after it ships.")
+                            Text("VaultLight includes no third-party code.")
+                        }
+                        .font(.system(size: 12))
+                        .frame(width: 240, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(12)
                     }
             }
             .font(.system(size: 13, weight: .medium))
