@@ -2,7 +2,8 @@
 # The human supplies the secrets and variables below; this file references them by name only.
 #
 #   secrets:   DEVELOPER_ID_P12_BASE64, DEVELOPER_ID_P12_PASSWORD  Developer ID Application certificate (.p12, base64)
-#              ASC_KEY_P8_BASE64, ASC_KEY_ID, ASC_ISSUER_ID         App Store Connect API key (signing profile + notarization)
+#              DEVELOPER_ID_PROFILE_BASE64                          Developer ID provisioning profile for the bundle ID (base64)
+#              ASC_KEY_P8_BASE64, ASC_KEY_ID, ASC_ISSUER_ID         App Store Connect API key (archive signing + notarization)
 #              TAP_GITHUB_TOKEN                                     token that can push branches and open PRs on dzsubek/homebrew-tap
 #   variables: VL_TEAM_ID, VL_BUNDLE_ID                             Team ID and bundle ID (Configs/Local.xcconfig is not in the repo)
 #
@@ -12,8 +13,8 @@
 #     can create `v*` tags. The `check` job below has no access to any secret.
 #   - TAP_GITHUB_TOKEN is a fine-grained personal access token scoped to dzsubek/homebrew-tap only, with
 #     Contents and Pull requests set to read/write, and an expiry date.
-#   - The App Store Connect API key gets the lowest role that can notarize and manage the Developer ID
-#     provisioning profile (check Apple's current role table when you create it).
+#   - The App Store Connect API key gets the lowest role that can notarize. It does not create the Developer ID
+#     profile: download that from the developer portal (Profiles, Developer ID) and renew the secret when it expires.
 name: Release
 
 on:
@@ -102,6 +103,15 @@ jobs:
           security list-keychains -d user -s "$keychain" login.keychain-db
           rm -f "$p12"
 
+      - name: Write the Developer ID provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.DEVELOPER_ID_PROFILE_BASE64 }}
+        run: |
+          umask 077
+          profile="$RUNNER_TEMP/developer-id.provisionprofile"
+          echo "DEVELOPER_ID_PROFILE=$profile" >> "$GITHUB_ENV"
+          printf '%s' "$PROFILE_BASE64" | base64 --decode > "$profile"
+
       - name: Store the notarization credentials
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -161,4 +171,4 @@ jobs:
         run: |
           if [ -n "${KEYCHAIN_PATH:-}" ]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
           if [ -n "${ASC_KEY_PATH:-}" ]; then rm -f "$ASC_KEY_PATH"; fi
-          rm -f "$RUNNER_TEMP/developer-id.p12"
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/developer-id.provisionprofile"

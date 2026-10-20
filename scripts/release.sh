@@ -10,6 +10,8 @@
 #   NOTARY_KEYCHAIN                           keychain holding the profile (passed to notarytool --keychain)
 #   ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID   App Store Connect API key for xcodebuild; all three or none
 #   VL_TEAM_ID, VL_BUNDLE_ID                  override what Configs/Local.xcconfig supplies
+#   DEVELOPER_ID_PROFILE                      a downloaded Developer ID .provisionprofile; the export then signs
+#                                             manually with it instead of letting Xcode create one (CI does this)
 #
 # Exit codes: 0 done, 1 a step failed, 2 bad arguments (nothing was run).
 set -euo pipefail
@@ -55,6 +57,9 @@ validate_args() {
   if [ -n "${VL_BUNDLE_ID:-}" ]; then
     [[ "$VL_BUNDLE_ID" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ ]] || bad_usage "VL_BUNDLE_ID must be a reverse-DNS identifier"
   fi
+  if [ -n "${DEVELOPER_ID_PROFILE:-}" ] && [ ! -f "$DEVELOPER_ID_PROFILE" ]; then
+    bad_usage "DEVELOPER_ID_PROFILE does not name a file"
+  fi
 }
 
 fail() { echo "error: $*" >&2; exit 1; }
@@ -87,6 +92,7 @@ self_test() {
     chmod +x "$stubs/$tool"
   done
   printf 'not a real key\n' >"$tmp/key.p8"
+  printf 'not a real profile\n' >"$tmp/given.provisionprofile"
 
   run() { # EXPECTED_STATUS NAME [VAR=value ...] -- ARGS...
     local expected=$1 name=$2 status=0
@@ -125,10 +131,11 @@ self_test() {
   run 2 "ASC key file missing" "ASC_KEY_PATH=$tmp/nope.p8" "ASC_KEY_ID=ABC123" "ASC_ISSUER_ID=x" -- --version 1.2.3 --notary-profile p
   run 2 "bad team id" "VL_TEAM_ID=abc" -- --version 1.2.3 --notary-profile p
   run 2 "bad bundle id" "VL_BUNDLE_ID=nodots" -- --version 1.2.3 --notary-profile p
+  run 2 "profile file missing" "DEVELOPER_ID_PROFILE=$tmp/nope.provisionprofile" -- --version 1.2.3 --notary-profile p
   run 0 "help" -- -h
   run 0 "valid arguments" -- --validate-only --version 1.2.3 --notary-profile p
   run 0 "valid arguments with every option" "ASC_KEY_PATH=$tmp/key.p8" "ASC_KEY_ID=ABC123" "ASC_ISSUER_ID=x" \
-    "VL_TEAM_ID=ABCDE12345" "VL_BUNDLE_ID=com.example.app" -- \
+    "VL_TEAM_ID=ABCDE12345" "VL_BUNDLE_ID=com.example.app" "DEVELOPER_ID_PROFILE=$tmp/given.provisionprofile" -- \
     --validate-only --version 1.2.3 --notary-profile p --build-number 7 --output "$tmp/out"
 
   printf '  uninstall quit: "com.example.app"\n' >"$tmp/cask.rb"
@@ -241,9 +248,30 @@ cp packaging/ExportOptions.plist "$export_options"
 if [ -n "${VL_TEAM_ID:-}" ]; then
   /usr/libexec/PlistBuddy -c "Add :teamID string $VL_TEAM_ID" "$export_options"
 fi
+export_args=(-allowProvisioningUpdates ${asc_args[@]+"${asc_args[@]}"})
+if [ -n "${DEVELOPER_ID_PROFILE:-}" ]; then
+  # A given profile instead of one Xcode creates: an App Store Connect key may not create Developer ID profiles.
+  given_plist="$output/given-profile.plist"
+  security cms -D -i "$DEVELOPER_ID_PROFILE" >"$given_plist" || fail "DEVELOPER_ID_PROFILE could not be decoded"
+  uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$given_plist" 2>/dev/null || true)
+  [[ "$uuid" =~ ^[0-9A-Fa-f-]{36}$ ]] || fail "DEVELOPER_ID_PROFILE has no UUID"
+  [ "$(/usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$given_plist" 2>/dev/null || true)" = "true" ] ||
+    fail "DEVELOPER_ID_PROFILE is not a Developer ID profile"
+  app_id=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$given_plist" 2>/dev/null || true)
+  [ "$app_id" = "$team.$bundle" ] || fail "DEVELOPER_ID_PROFILE is for '${app_id:-no app ID}', expected $team.$bundle"
+  # Xcode 16 and later read profiles from UserData; older versions from MobileDevice.
+  for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+    mkdir -p "$dir"
+    cp "$DEVELOPER_ID_PROFILE" "$dir/$uuid.provisionprofile"
+  done
+  /usr/libexec/PlistBuddy -c 'Set :signingStyle manual' \
+    -c 'Add :provisioningProfiles dict' -c "Add :provisioningProfiles:$bundle string $uuid" "$export_options"
+  export_args=()
+  echo "signing with the given profile $uuid"
+fi
 xcodebuild -exportArchive \
   -archivePath "$archive" -exportPath "$export_dir" -exportOptionsPlist "$export_options" \
-  -allowProvisioningUpdates ${asc_args[@]+"${asc_args[@]}"}
+  ${export_args[@]+"${export_args[@]}"}
 [ -d "$app" ] || fail "the export has no VaultLight.app"
 
 step "Verify the signature"

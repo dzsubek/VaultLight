@@ -4,7 +4,8 @@
 <dict>
 	<!-- Direct distribution outside the Mac App Store. Xcode embeds the Developer ID
 	     provisioning profile, which the keychain-access-groups entitlement needs.
-	     scripts/release.sh adds teamID from VL_TEAM_ID when it is set. -->
+	     scripts/release.sh adds teamID from VL_TEAM_ID when it is set, and switches to manual
+	     signing with the given profile when DEVELOPER_ID_PROFILE is set (CI). -->
 	<key>method</key>
 	<string>developer-id</string>
 	<key>signingStyle</key>
