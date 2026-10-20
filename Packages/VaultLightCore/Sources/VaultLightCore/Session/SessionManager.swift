@@ -29,7 +29,7 @@ public actor SessionManager {
     /// The background loop: one sync after unlock, then one per interval.
     var syncTask: Task<Void, Never>?
     /// The `bw sync` running now; Sync Now joins it instead of queueing a second one.
-    private var runningSync: Task<Void, any Error>?
+    var runningSync: Task<Void, any Error>?
     var syncState = SyncStatus()
     let syncStatusContinuation: AsyncStream<SyncStatus>.Continuation
     private var eventTask: Task<Void, Never>?
@@ -251,24 +251,11 @@ public actor SessionManager {
         if let runningSync { return try await runningSync.value }
         guard enforcePolicy(), let session else { throw BWError.locked }
         let generation = generation
-        let running = Task { try await rebuild(afterSyncWith: session, generation: generation) }
+        // The outcome is published inside the task, so a call that joins it returns only once the status shows it.
+        let running = Task { try await syncAndPublish(with: session, generation: generation) }
         runningSync = running
         updateSyncStatus { $0.activity = .syncing }
-        let result = await running.result
-        guard generation == self.generation else { throw BWError.locked }
-        runningSync = nil
-        let now = clock.now()
-        updateSyncStatus { status in
-            status.activity = nil
-            switch result {
-            case .success:
-                status.lastSyncedAt = now
-                status.failure = nil
-            case .failure(let error):
-                status.failure = SyncFailure(error: error)
-            }
-        }
-        try result.get()
+        try await running.value
     }
 }
 
@@ -308,16 +295,6 @@ extension SessionManager {
 
     func statusWithSession() async throws -> BWStatus {
         try await withSession { try await $0.status(session: $1) }
-    }
-
-    private func rebuild(afterSyncWith session: SessionKey, generation: Int) async throws {
-        try await client.sync(session: session)
-        // Cleared while `bw sync` ran: never list the decrypted vault for a session that is gone.
-        guard generation == self.generation, !Task.isCancelled else { throw BWError.locked }
-        updateSyncStatus { $0.activity = .refreshing }
-        let rebuilt = try await client.listVault(session: session)
-        guard generation == self.generation else { throw BWError.locked }
-        index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
     }
 
     private func install(_ key: SessionKey, entries: [VaultEntry], storedSessionCreatedAt: Date) {

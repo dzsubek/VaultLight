@@ -61,6 +61,41 @@ extension SessionManager {
         if syncState != previous { syncStatusContinuation.yield(syncState) }
     }
 
+    /// `rebuild(afterSyncWith:)`, then the outcome in the sync status, unless the session was cleared meanwhile.
+    func syncAndPublish(with session: SessionKey, generation: Int) async throws {
+        let result: Result<Void, any Error>
+        do {
+            try await rebuild(afterSyncWith: session, generation: generation)
+            result = .success(())
+        } catch {
+            result = .failure(error)
+        }
+        guard generation == self.generation else { throw BWError.locked }
+        runningSync = nil
+        let now = clock.now()
+        updateSyncStatus { status in
+            status.activity = nil
+            switch result {
+            case .success:
+                status.lastSyncedAt = now
+                status.failure = nil
+            case .failure(let error):
+                status.failure = SyncFailure(error: error)
+            }
+        }
+        try result.get()
+    }
+
+    func rebuild(afterSyncWith session: SessionKey, generation: Int) async throws {
+        try await client.sync(session: session)
+        // Cleared while `bw sync` ran: never list the decrypted vault for a session that is gone.
+        guard generation == self.generation, !Task.isCancelled else { throw BWError.locked }
+        updateSyncStatus { $0.activity = .refreshing }
+        let rebuilt = try await client.listVault(session: session)
+        guard generation == self.generation else { throw BWError.locked }
+        index?.replaceEntries(rebuilt.entries, folders: rebuilt.folders, organizations: rebuilt.organizations)
+    }
+
     /// Failures reach the footer through the status; here they are only logged, without values.
     private func backgroundSync() async {
         do {
