@@ -62,6 +62,7 @@
                     // The idle footer's sync line (designs 01–05, 08).
                     controller.syncStatus = SyncStatus(lastSyncedAt: Date().addingTimeInterval(-185))
                     await drive(controller, to: screen)
+                    moveToSharpestScreen(controller.panel)
                     try? await Task.sleep(for: .milliseconds(500))
                     save(png(of: controller.panel), screen.rawValue)
                     controller.close()
@@ -81,7 +82,7 @@
                     let window = SettingsWindowController(model: model)
                     window.window?.appearance = appearance
                     window.select(state.tab)
-                    window.window?.orderFront(nil)
+                    window.window.map(orderFrontSharp)
                     try? await Task.sleep(for: .milliseconds(600))
                     save(window.window.flatMap(png(ofWindow:)), state.file)
                     window.close()
@@ -90,7 +91,7 @@
                 model.setDemoState(.unlocked, summary: unlockedSummary, bwInUse: ("/opt/homebrew/bin/bw", "2025.9.0"))
                 let about = AboutWindowController(model: model)
                 about.window?.appearance = appearance
-                about.window?.orderFront(nil)
+                about.window.map(orderFrontSharp)
                 try? await Task.sleep(for: .milliseconds(500))
                 save(about.window.flatMap(png(ofWindow:)), "15-about")
                 about.close()

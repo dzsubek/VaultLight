@@ -127,6 +127,24 @@
 
         // MARK: Capture
 
+        static func orderFrontSharp(_ window: NSWindow) {
+            window.orderFront(nil)
+            moveToSharpestScreen(window)
+        }
+
+        /// Moves a window onto the screen with the highest backing scale. A window on a 1× display draws at 1×, and
+        /// the 2× capture of it comes out soft, whichever screen the pointer happens to be on.
+        static func moveToSharpestScreen(_ window: NSWindow) {
+            guard let screen = NSScreen.screens.max(by: { $0.backingScaleFactor < $1.backingScaleFactor }),
+                window.screen != screen
+            else { return }
+            let visible = screen.visibleFrame
+            window.setFrameOrigin(
+                NSPoint(
+                    x: visible.midX - window.frame.width / 2, y: visible.maxY - window.frame.height - visible.height / 6
+                ))
+        }
+
         static func png(of panel: NSPanel) -> Data? {
             panel.contentView.flatMap(png(of:))
         }

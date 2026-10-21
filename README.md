@@ -9,6 +9,52 @@ VaultLight is an unofficial client and is not affiliated with Bitwarden.
 - **Unlock with Touch ID.** The session key lives in the macOS Keychain behind user presence (Touch ID, Apple Watch or the Mac login password).
 - **Private by default.** No favicon requests, and copied secrets are hidden from clipboard managers and cleared after a timeout.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/02-search-results-dark.png">
+  <img alt="The VaultLight panel showing search results for “git”, with the second result selected" src="docs/screenshots/02-search-results-light.png" width="680">
+</picture>
+
+## Using VaultLight
+
+**Search and copy.** Type part of an item's name, username or website. Return copies the password and closes the panel, so you can paste straight into the app you were in. The footer counts down until the clipboard is cleared.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/04-password-copied-dark.png">
+  <img alt="The panel after copying a password: “Password copied” and “Clears in 45s” in the footer" src="docs/screenshots/04-password-copied-light.png" width="680">
+</picture>
+
+| Keys | Action |
+| --- | --- |
+| Return or Cmd + P | Copy the password |
+| Cmd + U | Copy the username (the panel stays open) |
+| Cmd + T | Copy the TOTP code |
+| Cmd + O | Open the website in your browser |
+| Cmd + , | Open Settings |
+| Escape | Close the panel |
+
+**Unlock.** When the vault is locked, the panel asks for Touch ID, or for your master password after a restart or when the stored session has expired.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/06-locked-touchid-dark.png">
+  <img alt="The locked panel asking for Touch ID to unlock" src="docs/screenshots/06-locked-touchid-light.png" width="680">
+</picture>
+
+**Menu bar.** The VaultLight menu opens the panel, syncs, locks the vault, and opens Settings.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/13-menubar-menu-unlocked-dark.png">
+  <img alt="The VaultLight menu-bar menu while the vault is unlocked" src="docs/screenshots/13-menubar-menu-unlocked-light.png" width="348">
+</picture>
+
+**Settings.** Change the hotkey, session lifetimes, idle lock, clipboard timeout, sync interval, server and `bw` location.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/14-settings-security-dark.png">
+  <img alt="The Security tab of VaultLight Settings" src="docs/screenshots/14-settings-security-light.png" width="620">
+</picture>
+
+The screenshots show an invented demo vault.
+
 ## Requirements
 
 - macOS 14 (Sonoma) or later
@@ -25,6 +71,11 @@ brew install --cask dzsubek/tap/vaultlight
 Since Homebrew 6.0, Homebrew runs code from a third-party tap only after you trust it, which is what `brew trust --tap dzsubek/tap` does. Read the cask in the tap first if you want to know what it will run.
 
 On first launch, VaultLight asks for your server (Bitwarden US, EU or self-hosted), signs you in with your email and master password or a personal API key, and unlocks the vault. The master password is never stored.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/11-onboarding-signin-email-dark.png">
+  <img alt="The sign-in step of the VaultLight setup, with email and master password fields" src="docs/screenshots/11-onboarding-signin-email-light.png" width="680">
+</picture>
 
 ## Update
 
