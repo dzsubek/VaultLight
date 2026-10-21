@@ -4,7 +4,8 @@
 #   secrets:   DEVELOPER_ID_P12_BASE64, DEVELOPER_ID_P12_PASSWORD  Developer ID Application certificate (.p12, base64)
 #              DEVELOPER_ID_PROFILE_BASE64                          Developer ID provisioning profile for the bundle ID (base64)
 #              ASC_KEY_P8_BASE64, ASC_KEY_ID, ASC_ISSUER_ID         App Store Connect API key (archive signing + notarization)
-#              TAP_GITHUB_TOKEN                                     token that can push branches and open PRs on dzsubek/homebrew-tap
+#              TAP_GITHUB_TOKEN                                     token that publishes releases, pushes branches and opens PRs
+#                                                                   on dzsubek/homebrew-tap
 #   variables: VL_TEAM_ID, VL_BUNDLE_ID                             Team ID and bundle ID (Configs/Local.xcconfig is not in the repo)
 #
 # How to keep the secrets safe:
@@ -15,6 +16,10 @@
 #     Contents and Pull requests set to read/write, and an expiry date.
 #   - The App Store Connect API key gets the lowest role that can notarize. It does not create the Developer ID
 #     profile: download that from the developer portal (Profiles, Developer ID) and renew the secret when it expires.
+#
+# The zip is published twice: on this repository's release (the internal copy) and on a release of the public tap,
+# which is what the cask downloads, because this repository is private. Neither release step can run twice: to
+# re-run the job after they ran, delete the v$VERSION release on both repositories first.
 name: Release
 
 on:
@@ -146,6 +151,29 @@ jobs:
             --notes "VaultLight $VERSION. Unofficial; not affiliated with Bitwarden.
 
           SHA-256 of VaultLight-$VERSION.zip: $SHA256"
+
+      - name: Publish the zip on the tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" ".build/release/VaultLight-$VERSION.zip" \
+            --repo dzsubek/homebrew-tap \
+            --target main \
+            --title "VaultLight $VERSION" \
+            --notes "VaultLight $VERSION. Unofficial; not affiliated with Bitwarden.
+
+          SHA-256 of VaultLight-$VERSION.zip: $SHA256"
+          # The cask's URL, fetched without a token: the PR below must only point at a file anyone can install.
+          download="$RUNNER_TEMP/tap-download.zip"
+          curl -fsSL --retry 5 --retry-all-errors -o "$download" \
+            "https://github.com/dzsubek/homebrew-tap/releases/download/$TAG/VaultLight-$VERSION.zip"
+          read -r published _ < <(shasum -a 256 "$download")
+          if [ "$published" != "$SHA256" ]; then
+            echo "::error::The tap's VaultLight-$VERSION.zip has SHA-256 $published, expected $SHA256"
+            exit 1
+          fi
+          rm -f "$download"
 
       - name: Open the Homebrew tap pull request
         env:

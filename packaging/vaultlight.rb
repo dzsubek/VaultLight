@@ -5,10 +5,11 @@ cask "vaultlight" do
   version "0.1.0"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
 
-  url "https://github.com/dzsubek/VaultLight/releases/download/v#{version}/VaultLight-#{version}.zip"
+  url "https://github.com/dzsubek/homebrew-tap/releases/download/v#{version}/VaultLight-#{version}.zip",
+      verified: "github.com/dzsubek/homebrew-tap/"
   name "VaultLight"
   desc "Unofficial quick-access panel for Bitwarden, not affiliated with Bitwarden"
-  homepage "https://github.com/dzsubek/VaultLight"
+  homepage "https://github.com/dzsubek/homebrew-tap"
 
   depends_on formula: "bitwarden-cli"
   depends_on macos: :sonoma
