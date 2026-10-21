@@ -196,7 +196,7 @@ struct OnboardingModelTests {
     @Test func failuresHaveFixedCopy() {
         let all: [OnboardingModel.Failure] = [
             .invalidServerURL, .serverUnreachable, .wrongCredentials, .wrongAPIKey, .wrongCode, .wrongEmailCode,
-            .wrongMasterPassword, .twoFactorExpired, .offline, .timedOut, .failed,
+            .wrongAppOrEmailCode, .wrongMasterPassword, .twoFactorExpired, .offline, .timedOut, .failed,
         ]
         #expect(Set(all.map(\.message)).count == all.count)
         #expect(OnboardingModel.Failure(BWError.unknown("tester@example.com secret")) == .failed)

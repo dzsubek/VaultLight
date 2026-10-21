@@ -76,7 +76,8 @@
             switch login {
             case .success: return
             case .wrongPassword: throw BWError.invalidPassword
-            case .twoFactor: throw BWError.twoFactorRequired
+            // An account with both methods, as in the design: the app's code is asked for first.
+            case .twoFactor: throw BWError.twoFactorMethodRequired
             case .offline: throw BWError.network
             }
         }

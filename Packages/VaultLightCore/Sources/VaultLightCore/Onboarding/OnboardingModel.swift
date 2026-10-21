@@ -20,7 +20,9 @@ public final class OnboardingModel {
     public private(set) var signedInEmail: String?
     public private(set) var failure: Failure?
     public private(set) var isBusy = false
-    public private(set) var twoFactorMethod = BWTwoFactor.Method.authenticator
+    /// The two-step method the code is for. `nil` is the account's only method, which `bw` picks itself: the app,
+    /// or email, in which case `bw` emailed the code at sign-in.
+    public private(set) var twoFactorMethod: BWTwoFactor.Method?
     public private(set) var emailCodeSent = false
     public private(set) var checklist = Checklist()
 
@@ -152,13 +154,11 @@ public final class OnboardingModel {
             do {
                 try await self.backend.loginPassword(email: email, password: password, twoFactor: nil)
             } catch BWError.twoFactorRequired {
-                // Dropped meanwhile (the panel closed): don't start holding the password; sign in again.
-                guard drops == self.dropCount else { return }
-                self.pendingPassword = password
-                self.startPasswordExpiry()
-                self.twoFactorMethod = .authenticator
-                self.emailCodeSent = false
-                self.step = .twoFactor
+                self.startTwoFactor(password: password, method: nil, drops: drops)
+                return
+            } catch BWError.twoFactorMethodRequired {
+                // Several methods: ask for the app's code first; email is one click away.
+                self.startTwoFactor(password: password, method: .authenticator, drops: drops)
                 return
             }
             await self.signedIn()
@@ -171,48 +171,6 @@ public final class OnboardingModel {
         let clientID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         await run {
             try await self.backend.loginAPIKey(clientID: clientID, clientSecret: clientSecret)
-            await self.signedIn()
-        }
-    }
-
-    /// The six-digit two-step code (design 11 state 2).
-    public func verify(code: String) async {
-        guard step == .twoFactor, !isBusy, let password = pendingPassword else { return }
-        guard code.count == 6, code.allSatisfy({ $0.isASCII && $0.isNumber }) else {
-            failure = codeFailure
-            return
-        }
-        let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        let method = twoFactorMethod
-        await run {
-            do {
-                try await self.backend.loginPassword(
-                    email: email, password: password, twoFactor: BWTwoFactor(method: method, code: code))
-            } catch BWError.invalidTwoFactorCode, BWError.twoFactorRequired {
-                self.failure = self.codeFailure
-                return
-            }
-            self.dropPassword()
-            await self.signedIn()
-        }
-    }
-
-    /// "Send a code by email": the login again with the email method and no code, so the server sends one.
-    public func sendCodeByEmail() async {
-        guard step == .twoFactor, !isBusy, let password = pendingPassword else { return }
-        let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        let drops = dropCount
-        await run {
-            do {
-                try await self.backend.loginPassword(
-                    email: email, password: password, twoFactor: BWTwoFactor(method: .email, code: nil))
-            } catch BWError.twoFactorRequired {
-                guard drops == self.dropCount else { return }
-                self.twoFactorMethod = .email
-                self.emailCodeSent = true
-                return
-            }
-            self.dropPassword()
             await self.signedIn()
         }
     }
@@ -250,8 +208,6 @@ public final class OnboardingModel {
     }
 
     // MARK: Private
-
-    private var codeFailure: Failure { twoFactorMethod == .email ? .wrongEmailCode : .wrongCode }
 
     private func record(_ progress: UnlockProgress) {
         switch progress {
@@ -314,7 +270,72 @@ public final class OnboardingModel {
         passwordExpiry = nil
         pendingPassword = nil
         emailCodeSent = false
-        twoFactorMethod = .authenticator
+        twoFactorMethod = nil
+    }
+}
+
+// MARK: Two-step login
+
+extension OnboardingModel {
+    /// The six-digit two-step code (design 11 state 2).
+    public func verify(code: String) async {
+        guard step == .twoFactor, !isBusy, let password = pendingPassword else { return }
+        guard code.count == 6, code.allSatisfy({ $0.isASCII && $0.isNumber }) else {
+            failure = codeFailure
+            return
+        }
+        let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let method = twoFactorMethod
+        await run {
+            do {
+                try await self.backend.loginPassword(
+                    email: email, password: password, twoFactor: BWTwoFactor(method: method, code: code))
+            } catch BWError.invalidTwoFactorCode, BWError.twoFactorRequired, BWError.twoFactorMethodRequired {
+                self.failure = self.codeFailure
+                return
+            }
+            self.dropPassword()
+            await self.signedIn()
+        }
+    }
+
+    /// "Send a code by email": the login again with the email method and no code, so the server sends one.
+    public func sendCodeByEmail() async {
+        guard step == .twoFactor, !isBusy, let password = pendingPassword else { return }
+        let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let drops = dropCount
+        await run {
+            do {
+                try await self.backend.loginPassword(
+                    email: email, password: password, twoFactor: BWTwoFactor(method: .email, code: nil))
+            } catch BWError.twoFactorRequired {
+                guard drops == self.dropCount else { return }
+                self.twoFactorMethod = .email
+                self.emailCodeSent = true
+                return
+            }
+            self.dropPassword()
+            await self.signedIn()
+        }
+    }
+
+    private var codeFailure: Failure {
+        switch twoFactorMethod {
+        case .authenticator: .wrongCode
+        case .email: .wrongEmailCode
+        case nil: .wrongAppOrEmailCode
+        }
+    }
+
+    /// Holds the master password for the code `bw` asked for.
+    private func startTwoFactor(password: String, method: BWTwoFactor.Method?, drops: Int) {
+        // Dropped meanwhile (the panel closed): don't start holding the password; sign in again.
+        guard drops == dropCount else { return }
+        pendingPassword = password
+        startPasswordExpiry()
+        twoFactorMethod = method
+        emailCodeSent = false
+        step = .twoFactor
     }
 }
 

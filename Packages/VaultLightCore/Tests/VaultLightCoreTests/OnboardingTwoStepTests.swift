@@ -5,8 +5,9 @@ import Testing
 
 /// The two-step step (design 11 state 2): the held master password and when it is dropped.
 extension OnboardingModelTests {
+    /// Several methods: `bw` names none, so the app is asked for first, with email one click away.
     @Test func twoStepLoginWithTheAuthenticatorApp() async throws {
-        try fake.configure(["two_factor_code": "123456"])
+        try fake.configure(["two_factor_code": "123456", "two_factor_providers": [0, 1]])
         try await atSignIn()
         await model.signIn(password: FakeBW.Defaults.masterPassword)
         #expect(model.step == .twoFactor)
@@ -24,7 +25,7 @@ extension OnboardingModelTests {
     }
 
     @Test func twoStepLoginWithAnEmailCode() async throws {
-        try fake.configure(["two_factor_code": "654321"])
+        try fake.configure(["two_factor_code": "654321", "two_factor_providers": [0, 1]])
         try await atSignIn()
         await model.signIn(password: FakeBW.Defaults.masterPassword)
         await model.sendCodeByEmail()
@@ -40,6 +41,36 @@ extension OnboardingModelTests {
         #expect(try logins().last?.suffix(5) == ["--method", "1", "--code", "654321", "--nointeraction"])
     }
 
+    /// Email is the account's only method: `bw` emails a code during sign-in, and that first code works. It used
+    /// to be sent with `--method 0`, so the server checked it as an authenticator code and always rejected it.
+    @Test func twoStepLoginWhenEmailIsTheOnlyMethod() async throws {
+        try fake.configure(["two_factor_code": "482913", "two_factor_providers": [1]])
+        try await atSignIn()
+        await model.signIn(password: FakeBW.Defaults.masterPassword)
+        #expect(model.step == .twoFactor)
+        #expect(model.twoFactorMethod == nil)
+        #expect(try fake.twoFactorEmails() == 1)
+
+        await model.verify(code: "111111")
+        #expect(model.failure == .wrongAppOrEmailCode)
+        await model.verify(code: "482913")
+        #expect(model.step == .unlock)
+        #expect(try logins().last?.suffix(3) == ["--code", "482913", "--nointeraction"])
+        #expect(try !logins().contains { $0.contains("--method") })
+        #expect(try fake.twoFactorEmails() == 1)
+    }
+
+    @Test func twoStepLoginWhenTheAppIsTheOnlyMethod() async throws {
+        try fake.configure(["two_factor_code": "123456", "two_factor_providers": [0]])
+        try await atSignIn()
+        await model.signIn(password: FakeBW.Defaults.masterPassword)
+        #expect(model.twoFactorMethod == nil)
+        #expect(try fake.twoFactorEmails() == 0)
+        await model.verify(code: "123456")
+        #expect(model.step == .unlock)
+        #expect(try !logins().contains { $0.contains("--method") })
+    }
+
     @Test func aCodeThatIsNotSixDigitsNeverReachesBW() async throws {
         try fake.configure(["two_factor_code": "123456"])
         try await atSignIn()
@@ -47,7 +78,7 @@ extension OnboardingModelTests {
         let before = try fake.calls().count
         await model.verify(code: "12 34")
         await model.verify(code: "-12345")
-        #expect(model.failure == .wrongCode)
+        #expect(model.failure == .wrongAppOrEmailCode)
         #expect(try fake.calls().count == before)
     }
 

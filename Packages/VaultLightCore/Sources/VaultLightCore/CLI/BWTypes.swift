@@ -92,12 +92,15 @@ public struct BWTwoFactor: Sendable {
         case email = 1
     }
 
-    public let method: Method
+    /// `nil` leaves `--method` out, so `bw` uses the account's only method (`BWError.twoFactorRequired`). With
+    /// `--method`, `bw` sends a code to the server as that method's, and the server rejects it for a method the
+    /// account doesn't have.
+    public let method: Method?
     /// `nil` asks `bw` to start the method without a code: for email, the server sends one ("Send a code by
     /// email", design 11).
     public let code: String?
 
-    public init(method: Method, code: String?) {
+    public init(method: Method?, code: String?) {
         self.method = method
         self.code = code
     }

@@ -128,7 +128,9 @@ public actor BWClient {
         }
         var arguments = ["login", email, "--passwordenv", Self.passwordVariable]
         if let twoFactor {
-            arguments += ["--method", String(twoFactor.method.rawValue)]
+            if let method = twoFactor.method {
+                arguments += ["--method", String(method.rawValue)]
+            }
             if let code = twoFactor.code {
                 guard !code.isEmpty, code.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else {
                     throw BWError.invalidArgument

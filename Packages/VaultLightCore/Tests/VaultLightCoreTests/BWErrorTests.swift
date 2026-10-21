@@ -14,6 +14,7 @@ struct BWErrorTests {
         ("client_id or client_secret is incorrect. Try again.", .invalidAPIKey),
         ("Login failed: two-step login code is required.", .twoFactorRequired),
         ("Code is required.", .twoFactorRequired),
+        ("Login failed. No provider selected.", .twoFactorMethodRequired),
         ("Two-step token is invalid. Try again.", .invalidTwoFactorCode),
         ("FetchError: request to https://api.bitwarden.com failed, reason: getaddrinfo ENOTFOUND", .network),
         ("request to https://vault.example.test failed, reason: connect ECONNREFUSED 10.0.0.1:443", .network),

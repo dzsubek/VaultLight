@@ -93,6 +93,14 @@ final class FakeBW {
             to: dataDirectory.appendingPathComponent("fake-state.json"))
     }
 
+    /// How many two-step emails the fake `bw` has sent (`two_factor_emails` in `fake-state.json`).
+    func twoFactorEmails() throws -> Int {
+        let url = dataDirectory.appendingPathComponent("fake-state.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return 0 }
+        let state = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        return state?["two_factor_emails"] as? Int ?? 0
+    }
+
     /// Every invocation the fake recorded: argv, the environment keys it received, overlap flag.
     func calls() throws -> [[String: Any]] {
         let url = dataDirectory.appendingPathComponent("fake-calls.jsonl")

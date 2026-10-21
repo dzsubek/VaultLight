@@ -202,7 +202,7 @@ struct TwoFactorStepView: View {
             if let failure = model.failure {
                 ErrorLine(message: failure.message).padding(.top, 10)
             }
-            if model.twoFactorMethod == .authenticator {
+            if model.twoFactorMethod != .email {
                 HStack(spacing: 4) {
                     Text("No access to the app?").foregroundStyle(.secondary)
                     Button("Send a code by email") { Task { await model.sendCodeByEmail() } }
@@ -235,13 +235,22 @@ struct TwoFactorStepView: View {
 
     private var subtitle: String {
         let email = model.email
-        switch (model.twoFactorMethod == .email, email.isEmpty) {
-        case (true, true): return String(localized: "Enter the 6-digit code from the email Bitwarden sent.")
-        case (true, false):
+        switch (model.twoFactorMethod, email.isEmpty) {
+        case (.email, true): return String(localized: "Enter the 6-digit code from the email Bitwarden sent.")
+        case (.email, false):
             return String(localized: "Enter the 6-digit code from the email Bitwarden sent for \(email).")
-        case (false, true): return String(localized: "Enter the 6-digit code from your authenticator app.")
-        case (false, false):
+        case (.authenticator, true): return String(localized: "Enter the 6-digit code from your authenticator app.")
+        case (.authenticator, false):
             return String(localized: "Enter the 6-digit code from your authenticator app for \(email).")
+        // The account's only method: `bw` doesn't say which, and has already emailed the code if it is email.
+        case (nil, true):
+            return String(
+                localized: "Enter the 6-digit code from your authenticator app, or from the email Bitwarden sent.")
+        case (nil, false):
+            return String(
+                localized:
+                    "Enter the 6-digit code from your authenticator app, or from the email Bitwarden sent for \(email)."
+            )
         }
     }
 

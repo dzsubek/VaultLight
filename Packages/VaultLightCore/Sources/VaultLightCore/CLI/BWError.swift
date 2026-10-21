@@ -16,8 +16,11 @@ public enum BWError: Error, Equatable, Sendable {
     case invalidPassword
     /// Wrong `client_id` or `client_secret`.
     case invalidAPIKey
-    /// The account needs a two-step login code.
+    /// The account needs a two-step login code. Without `--method`, `bw` answers this only when the account has
+    /// one method it can use, and has already emailed a code when that method is email.
     case twoFactorRequired
+    /// The account has several two-step methods and the call named none of them, so `bw` started none.
+    case twoFactorMethodRequired
     /// The two-step login code was wrong.
     case invalidTwoFactorCode
     /// The server could not be reached.
@@ -41,28 +44,36 @@ extension BWError {
         let message = lines.first ?? ""
         // Known messages are looked for in every line: `bw` can print warnings or SDK tracing lines first.
         let text = lines.joined(separator: "\n").lowercased()
-        func has(_ needles: String...) -> Bool { needles.contains { text.contains($0) } }
 
-        if has("you are not logged in") { return .unauthenticated }
-        if has("vault is locked") { return .locked }
-        // `bw` 2025.x unlocks through the Bitwarden SDK, which reports a wrong master password as a failed decryption.
-        if has("invalid master password", "username or password is incorrect", "the decryption operation failed") {
-            return .invalidPassword
-        }
-        if has("client_id or client_secret is incorrect") { return .invalidAPIKey }
-        if has("two-step token is invalid") { return .invalidTwoFactorCode }
-        if has("two-step login code is required", "code is required") { return .twoFactorRequired }
-        if has(
-            "fetcherror", "enotfound", "econnrefused", "econnreset", "etimedout", "eai_again", "getaddrinfo",
-            "socket hang up", "network error", "failed to fetch")
-        {
-            return .network
+        if let known = knownMessages.first(where: { needles, _ in needles.contains { text.contains($0) } }) {
+            return known.error
         }
         if text == "not found." { return .itemNotFound }
-        if has("no password available", "no totp available") { return .noValue }
         if message.isEmpty { return .unknown("bw exited with status \(exitStatus)") }
         return .unknown(redact(message, secrets: secrets))
     }
+
+    /// Lowercased fragments of `bw` messages and their errors, checked in order.
+    private static let knownMessages: [(needles: [String], error: BWError)] = [
+        (["you are not logged in"], .unauthenticated),
+        (["vault is locked"], .locked),
+        // `bw` 2025.x unlocks through the Bitwarden SDK, which reports a wrong master password as a failed decryption.
+        (
+            ["invalid master password", "username or password is incorrect", "the decryption operation failed"],
+            .invalidPassword
+        ),
+        (["client_id or client_secret is incorrect"], .invalidAPIKey),
+        (["two-step token is invalid"], .invalidTwoFactorCode),
+        (["two-step login code is required", "code is required"], .twoFactorRequired),
+        (["no provider selected"], .twoFactorMethodRequired),
+        (
+            [
+                "fetcherror", "enotfound", "econnrefused", "econnreset", "etimedout", "eai_again", "getaddrinfo",
+                "socket hang up", "network error", "failed to fetch",
+            ], .network
+        ),
+        (["no password available", "no totp available"], .noValue),
+    ]
 
     private static let maximumMessageLength = 200
 
@@ -100,6 +111,7 @@ extension BWError {
         case .invalidPassword: "invalidPassword"
         case .invalidAPIKey: "invalidAPIKey"
         case .twoFactorRequired: "twoFactorRequired"
+        case .twoFactorMethodRequired: "twoFactorMethodRequired"
         case .invalidTwoFactorCode: "invalidTwoFactorCode"
         case .network: "network"
         case .timeout: "timeout"
