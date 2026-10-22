@@ -28,8 +28,6 @@ extension OnboardingModel {
         case wrongAPIKey
         case wrongCode
         case wrongEmailCode
-        /// A wrong code for the account's only method, which may be the app or email.
-        case wrongAppOrEmailCode
         case wrongMasterPassword
         /// The two-step step waited longer than `passwordHoldLimit`.
         case twoFactorExpired
@@ -51,10 +49,6 @@ extension OnboardingModel {
                 String(localized: "That code didn’t work. Enter the current code from your app.", bundle: .module)
             case .wrongEmailCode:
                 String(localized: "That code didn’t work. Enter the code from the latest email.", bundle: .module)
-            case .wrongAppOrEmailCode:
-                String(
-                    localized: "That code didn’t work. Enter the current code from your app or the latest email.",
-                    bundle: .module)
             case .wrongMasterPassword: String(localized: "Wrong master password. Try again.", bundle: .module)
             case .twoFactorExpired:
                 String(

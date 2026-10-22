@@ -12,7 +12,10 @@ extension OnboardingModelTests {
         await model.signIn(password: FakeBW.Defaults.masterPassword)
         #expect(model.step == .twoFactor)
         #expect(model.twoFactorMethod == .authenticator)
+        #expect(!model.hasSingleTwoFactorMethod)
         #expect(model.failure == nil)
+        model.useCode(from: .email)
+        #expect(model.twoFactorMethod == .authenticator)
 
         await model.verify(code: "000000")
         #expect(model.step == .twoFactor)
@@ -41,22 +44,26 @@ extension OnboardingModelTests {
         #expect(try logins().last?.suffix(5) == ["--method", "1", "--code", "654321", "--nointeraction"])
     }
 
-    /// Email is the account's only method: `bw` emails a code during sign-in, and that first code works. It used
-    /// to be sent with `--method 0`, so the server checked it as an authenticator code and always rejected it.
+    /// Email is the account's only method: `bw` emails a code during sign-in, and that first code works. The code
+    /// must go with `--method 1`: without it, `bw` first asks the server without the code, which replaces it.
     @Test func twoStepLoginWhenEmailIsTheOnlyMethod() async throws {
         try fake.configure(["two_factor_code": "482913", "two_factor_providers": [1]])
         try await atSignIn()
         await model.signIn(password: FakeBW.Defaults.masterPassword)
         #expect(model.step == .twoFactor)
-        #expect(model.twoFactorMethod == nil)
+        #expect(model.hasSingleTwoFactorMethod)
         #expect(try fake.twoFactorEmails() == 1)
 
+        let before = try fake.calls().count
+        model.useCode(from: .email)
+        #expect(model.twoFactorMethod == .email)
+        #expect(try fake.calls().count == before)
+
         await model.verify(code: "111111")
-        #expect(model.failure == .wrongAppOrEmailCode)
+        #expect(model.failure == .wrongEmailCode)
         await model.verify(code: "482913")
         #expect(model.step == .unlock)
-        #expect(try logins().last?.suffix(3) == ["--code", "482913", "--nointeraction"])
-        #expect(try !logins().contains { $0.contains("--method") })
+        #expect(try logins().last?.suffix(5) == ["--method", "1", "--code", "482913", "--nointeraction"])
         #expect(try fake.twoFactorEmails() == 1)
     }
 
@@ -64,11 +71,12 @@ extension OnboardingModelTests {
         try fake.configure(["two_factor_code": "123456", "two_factor_providers": [0]])
         try await atSignIn()
         await model.signIn(password: FakeBW.Defaults.masterPassword)
-        #expect(model.twoFactorMethod == nil)
+        #expect(model.hasSingleTwoFactorMethod)
+        #expect(model.twoFactorMethod == .authenticator)
         #expect(try fake.twoFactorEmails() == 0)
         await model.verify(code: "123456")
         #expect(model.step == .unlock)
-        #expect(try !logins().contains { $0.contains("--method") })
+        #expect(try logins().last?.suffix(5) == ["--method", "0", "--code", "123456", "--nointeraction"])
     }
 
     @Test func aCodeThatIsNotSixDigitsNeverReachesBW() async throws {
@@ -78,7 +86,7 @@ extension OnboardingModelTests {
         let before = try fake.calls().count
         await model.verify(code: "12 34")
         await model.verify(code: "-12345")
-        #expect(model.failure == .wrongAppOrEmailCode)
+        #expect(model.failure == .wrongCode)
         #expect(try fake.calls().count == before)
     }
 

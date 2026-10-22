@@ -20,9 +20,10 @@ public final class OnboardingModel {
     public private(set) var signedInEmail: String?
     public private(set) var failure: Failure?
     public private(set) var isBusy = false
-    /// The two-step method the code is for. `nil` is the account's only method, which `bw` picks itself: the app,
-    /// or email, in which case `bw` emailed the code at sign-in.
-    public private(set) var twoFactorMethod: BWTwoFactor.Method?
+    public private(set) var twoFactorMethod = BWTwoFactor.Method.authenticator
+    /// The account has one two-step method, which `bw` picked at sign-in without saying which. If it is email,
+    /// `bw` emailed the code then; the user says so with `useCode(from:)`.
+    public private(set) var hasSingleTwoFactorMethod = false
     public private(set) var emailCodeSent = false
     public private(set) var checklist = Checklist()
 
@@ -154,11 +155,11 @@ public final class OnboardingModel {
             do {
                 try await self.backend.loginPassword(email: email, password: password, twoFactor: nil)
             } catch BWError.twoFactorRequired {
-                self.startTwoFactor(password: password, method: nil, drops: drops)
+                self.startTwoFactor(password: password, singleMethod: true, drops: drops)
                 return
             } catch BWError.twoFactorMethodRequired {
-                // Several methods: ask for the app's code first; email is one click away.
-                self.startTwoFactor(password: password, method: .authenticator, drops: drops)
+                // Several methods: ask for the app's code first; "Send a code by email" is one click away.
+                self.startTwoFactor(password: password, singleMethod: false, drops: drops)
                 return
             }
             await self.signedIn()
@@ -270,7 +271,8 @@ public final class OnboardingModel {
         passwordExpiry = nil
         pendingPassword = nil
         emailCodeSent = false
-        twoFactorMethod = nil
+        twoFactorMethod = .authenticator
+        hasSingleTwoFactorMethod = false
     }
 }
 
@@ -290,7 +292,7 @@ extension OnboardingModel {
             do {
                 try await self.backend.loginPassword(
                     email: email, password: password, twoFactor: BWTwoFactor(method: method, code: code))
-            } catch BWError.invalidTwoFactorCode, BWError.twoFactorRequired, BWError.twoFactorMethodRequired {
+            } catch BWError.invalidTwoFactorCode, BWError.twoFactorRequired {
                 self.failure = self.codeFailure
                 return
             }
@@ -319,21 +321,24 @@ extension OnboardingModel {
         }
     }
 
-    private var codeFailure: Failure {
-        switch twoFactorMethod {
-        case .authenticator: .wrongCode
-        case .email: .wrongEmailCode
-        case nil: .wrongAppOrEmailCode
-        }
+    /// Where the code comes from, for an account with one two-step method: no `bw` call, since `bw` already
+    /// emailed the code at sign-in if that method is email.
+    public func useCode(from method: BWTwoFactor.Method) {
+        guard step == .twoFactor, hasSingleTwoFactorMethod, !isBusy else { return }
+        twoFactorMethod = method
+        failure = nil
     }
 
+    private var codeFailure: Failure { twoFactorMethod == .email ? .wrongEmailCode : .wrongCode }
+
     /// Holds the master password for the code `bw` asked for.
-    private func startTwoFactor(password: String, method: BWTwoFactor.Method?, drops: Int) {
+    private func startTwoFactor(password: String, singleMethod: Bool, drops: Int) {
         // Dropped meanwhile (the panel closed): don't start holding the password; sign in again.
         guard drops == dropCount else { return }
         pendingPassword = password
         startPasswordExpiry()
-        twoFactorMethod = method
+        twoFactorMethod = .authenticator
+        hasSingleTwoFactorMethod = singleMethod
         emailCodeSent = false
         step = .twoFactor
     }

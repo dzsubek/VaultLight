@@ -14,7 +14,7 @@ struct BWClientTests {
 
     private static let baseKeys: Set<String> = ["HOME", "PATH", "BITWARDENCLI_APPDATA_DIR"]
     private static let sessionKeys = baseKeys.union(["BW_SESSION"])
-    private static let passwordKeys = baseKeys.union([BWClient.passwordVariable])
+    static let passwordKeys = baseKeys.union([BWClient.passwordVariable])
 
     private static let allSecrets = [
         FakeBW.Defaults.masterPassword, FakeBW.Defaults.sessionKey, FakeBW.Defaults.clientID,
@@ -22,7 +22,7 @@ struct BWClientTests {
     ]
 
     /// argv of the last call holds no secret, anywhere inside an argument.
-    private func expectNoSecretsInArguments(_ fake: FakeBW) throws {
+    func expectNoSecretsInArguments(_ fake: FakeBW) throws {
         let arguments = try fake.lastArguments()
         #expect(!arguments.isEmpty)
         for secret in Self.allSecrets {
@@ -90,28 +90,6 @@ struct BWClientTests {
             try fake.lastArguments() == [
                 "login", FakeBW.Defaults.email, "--passwordenv", BWClient.passwordVariable, "--nointeraction",
             ])
-        try expectNoSecretsInArguments(fake)
-    }
-
-    @Test func loginPasswordWithTwoFactorCode() async throws {
-        let fake = try FakeBW()
-        try fake.configure(["two_factor_code": "123456"])
-        let client = fake.client()
-        let email = FakeBW.Defaults.email
-        let password = FakeBW.Defaults.masterPassword
-
-        await #expect(throws: BWError.twoFactorRequired) {
-            try await client.loginPassword(email: email, password: password)
-        }
-        await #expect(throws: BWError.invalidTwoFactorCode) {
-            try await client.loginPassword(
-                email: email, password: password, twoFactor: BWTwoFactor(method: .authenticator, code: "000000"))
-        }
-        try await client.loginPassword(
-            email: email, password: password, twoFactor: BWTwoFactor(method: .authenticator, code: "123456"))
-        let arguments = try fake.lastArguments()
-        #expect(arguments.suffix(5) == ["--method", "0", "--code", "123456", "--nointeraction"])
-        #expect(try fake.lastEnvironmentKeys() == Self.passwordKeys)
         try expectNoSecretsInArguments(fake)
     }
 

@@ -202,17 +202,9 @@ struct TwoFactorStepView: View {
             if let failure = model.failure {
                 ErrorLine(message: failure.message).padding(.top, 10)
             }
-            if model.twoFactorMethod != .email {
-                HStack(spacing: 4) {
-                    Text("No access to the app?").foregroundStyle(.secondary)
-                    Button("Send a code by email") { Task { await model.sendCodeByEmail() } }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Theme.teal)
-                        .disabled(model.isBusy)
-                }
+            codeSourceLink
                 .font(.system(size: 13))
                 .padding(.top, 14)
-            }
             StepButtons(
                 title: String(localized: "Verify"), busy: model.isBusy, onBack: { Task { await model.back() } },
                 onSubmit: verify)
@@ -235,23 +227,39 @@ struct TwoFactorStepView: View {
 
     private var subtitle: String {
         let email = model.email
-        switch (model.twoFactorMethod, email.isEmpty) {
-        case (.email, true): return String(localized: "Enter the 6-digit code from the email Bitwarden sent.")
-        case (.email, false):
+        switch (model.twoFactorMethod == .email, email.isEmpty) {
+        case (true, true): return String(localized: "Enter the 6-digit code from the email Bitwarden sent.")
+        case (true, false):
             return String(localized: "Enter the 6-digit code from the email Bitwarden sent for \(email).")
-        case (.authenticator, true): return String(localized: "Enter the 6-digit code from your authenticator app.")
-        case (.authenticator, false):
+        case (false, true): return String(localized: "Enter the 6-digit code from your authenticator app.")
+        case (false, false):
             return String(localized: "Enter the 6-digit code from your authenticator app for \(email).")
-        // The account's only method: `bw` doesn't say which, and has already emailed the code if it is email.
-        case (nil, true):
-            return String(
-                localized: "Enter the 6-digit code from your authenticator app, or from the email Bitwarden sent.")
-        case (nil, false):
-            return String(
-                localized:
-                    "Enter the 6-digit code from your authenticator app, or from the email Bitwarden sent for \(email)."
-            )
         }
+    }
+
+    /// One method: `bw` doesn't say which, and already emailed the code if it is email, so the link only switches.
+    /// Several: the app is asked for first, and the link has `bw` send an email.
+    @ViewBuilder private var codeSourceLink: some View {
+        switch (model.hasSingleTwoFactorMethod, model.twoFactorMethod) {
+        case (true, .authenticator):
+            linkButton(String(localized: "Got the code by email?")) { model.useCode(from: .email) }
+        case (true, .email):
+            linkButton(String(localized: "Use the code from your app")) { model.useCode(from: .authenticator) }
+        case (false, .authenticator):
+            HStack(spacing: 4) {
+                Text("No access to the app?").foregroundStyle(.secondary)
+                linkButton(String(localized: "Send a code by email")) { Task { await model.sendCodeByEmail() } }
+            }
+        case (false, .email):
+            EmptyView()
+        }
+    }
+
+    private func linkButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.teal)
+            .disabled(model.isBusy)
     }
 
     private func verify() {

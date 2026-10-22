@@ -229,12 +229,6 @@
     "Enter the 6-digit code from your authenticator app for %@." : {
 
     },
-    "Enter the 6-digit code from your authenticator app, or from the email Bitwarden sent for %@." : {
-
-    },
-    "Enter the 6-digit code from your authenticator app, or from the email Bitwarden sent." : {
-
-    },
     "Enter the 6-digit code from your authenticator app." : {
 
     },
@@ -269,6 +263,9 @@
 
     },
     "Getting your vault ready" : {
+
+    },
+    "Got the code by email?" : {
 
     },
     "Hide VaultLight" : {
@@ -561,6 +558,9 @@
 
     },
     "Use Server" : {
+
+    },
+    "Use the code from your app" : {
 
     },
     "Use the email and master password of your Bitwarden account." : {

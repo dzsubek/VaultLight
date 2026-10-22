@@ -23,10 +23,12 @@ Config keys (fake-config.json):
   master_password, session_key, email, client_id, client_secret, version,
   two_factor_code   if set, password login needs a two-step code: --code <value>
   two_factor_providers  the account's two-step methods bw can use (0 authenticator, 1 email; default [0]).
-                    As in bw 2026.10: --method with --code goes to the server as is, so a method the
-                    account lacks fails; otherwise bw picks --method, else the only method, else fails
-                    with "No provider selected."; without a code, an email method sends an email
-                    (counted as two_factor_emails in fake-state.json) and fails with "Code is required."
+                    As in bw 2026.10: --method with --code sends the code in the first request, so a
+                    method the account lacks fails. Otherwise the first request has no code, and, as on
+                    the server, its "two-step required" answer replaces the emailed code (it stops
+                    working); bw then picks --method, else the only method, else fails with "No provider
+                    selected."; without a code, an email method sends a new code (counted as
+                    two_factor_emails in fake-state.json) and fails with "Code is required."
   offline           true -> login and sync fail with a network error
   fail              {"logout": "message"}: the command prints the message to stderr and exits 1
   delay             {"sync": 70, "*": 1} seconds to sleep before a command
@@ -258,20 +260,28 @@ def main(argv):
             providers = config["two_factor_providers"]
             method = int(flags["--method"]) if "--method" in flags else None
             code = flags.get("--code")
+            def valid(selected):
+                emailed = selected != 1 or state.get("email_code_valid", False)
+                return selected in providers and code == config["two_factor_code"] and emailed
+
             if code is not None and method is not None:
                 # The first request carries the code for that method; the server rejects one the account lacks.
-                if method not in providers or code != config["two_factor_code"]:
+                if not valid(method):
                     fail("Two-step token is invalid. Try again.")
             else:
+                # The server's "two-step required" answer generates a new email code without sending it.
+                state["email_code_valid"] = False
+                save()
                 selected = method if method in providers else (providers[0] if len(providers) == 1 else None)
                 if selected is None:
                     fail("Login failed. No provider selected.")
                 if code is None:
                     if selected == 1:
                         state["two_factor_emails"] = state.get("two_factor_emails", 0) + 1
+                        state["email_code_valid"] = True
                         save()
                     fail("Code is required.")
-                if code != config["two_factor_code"]:
+                if not valid(selected):
                     fail("Two-step token is invalid. Try again.")
         state["status"] = "unlocked"
         save()
