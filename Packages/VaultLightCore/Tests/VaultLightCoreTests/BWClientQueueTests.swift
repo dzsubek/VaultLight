@@ -73,7 +73,8 @@ struct BWClientQueueTests {
         let copy = folder.appendingPathComponent("bw")
         try FileManager.default.copyItem(at: FakeBW.executable, to: copy)
         let client = BWClient(
-            locator: BWLocator(candidates: [copy.path], homebrewBinDirectories: []), dataDirectory: fake.dataDirectory,
+            locator: BWLocator(candidates: [copy.path], homebrewBinDirectories: [FakeBW.pythonDirectory.path]),
+            dataDirectory: fake.dataDirectory,
             home: fake.dataDirectory.path, timeouts: FakeBW.patientTimeouts)
         _ = try await client.version()
 

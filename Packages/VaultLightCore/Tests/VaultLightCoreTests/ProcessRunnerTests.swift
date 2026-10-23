@@ -8,7 +8,10 @@ import Testing
 @Suite("ProcessRunner")
 struct ProcessRunnerTests {
     private func environment(_ fake: FakeBW) -> [String: String] {
-        ["HOME": fake.dataDirectory.path, "PATH": "/usr/bin:/bin", "BITWARDENCLI_APPDATA_DIR": fake.dataDirectory.path]
+        [
+            "HOME": fake.dataDirectory.path, "PATH": FakeBW.searchPath,
+            "BITWARDENCLI_APPDATA_DIR": fake.dataDirectory.path,
+        ]
     }
 
     private func run(
@@ -63,10 +66,11 @@ struct ProcessRunnerTests {
                 except OSError:
                     pass
             """
-        // As patient as `FakeBW.patientTimeouts`: the `python3` shim can take seconds to start on a loaded CI runner
-        // (run 39147516665 hit a 30 s timeout here). The check is about descriptors, not timing.
+        // The interpreter itself, not the `/usr/bin/python3` shim (see `FakeBW.pythonDirectory`), and as patient as
+        // `FakeBW.patientTimeouts`. The check is about descriptors, not timing.
         let output = try await ProcessRunner.run(
-            URL(fileURLWithPath: "/usr/bin/python3"), arguments: ["-c", script] + leaked.map(String.init),
+            FakeBW.pythonDirectory.appendingPathComponent("python3"),
+            arguments: ["-c", script] + leaked.map(String.init),
             environment: [:], timeout: .seconds(120), killGrace: .seconds(2))
         #expect(output.status == 0 && output.outputComplete)
         #expect(String(bytes: output.stdout, encoding: .utf8) == "")
@@ -81,7 +85,7 @@ struct ProcessRunnerTests {
         let fake = try FakeBW()
         _ = try await run(fake, ["status", argument, "--nointeraction"])
         let received = try fake.lastArguments()
-        #expect(received.count == 3)
+        try #require(received.count == 3)
         #expect(Array(received[1].unicodeScalars) == Array(argument.unicodeScalars))
     }
 
@@ -138,7 +142,7 @@ struct ProcessRunnerTests {
     @Test func killsLeftoversThatHoldThePipesAndFlagsTheOutput() async throws {
         let fake = try FakeBW()
         // The leftover holds the pipes for 300 s; the call must return long before that. The bound leaves room for
-        // the fake's `python3` shim, which took ~40 s to start on a loaded CI runner (run 39162744207).
+        // the fake, which took ~40 s to start through the `python3` shim on a loaded CI runner (run 39162744207).
         try fake.configure(["orphan_holds_pipes": 300])
         let start = ContinuousClock.now
         let output = try await run(fake, ["--version", "--nointeraction"], killGrace: .seconds(1))

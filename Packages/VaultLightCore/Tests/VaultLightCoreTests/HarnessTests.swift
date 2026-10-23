@@ -22,7 +22,7 @@ struct HarnessTests {
         process.arguments = ["--version", "--nointeraction"]
         process.environment = [
             "HOME": NSHomeDirectory(),
-            "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+            "PATH": FakeBW.searchPath,
             "BITWARDENCLI_APPDATA_DIR": fake.dataDirectory.path,
         ]
         let output = Pipe()

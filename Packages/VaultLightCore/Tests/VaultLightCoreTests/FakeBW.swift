@@ -18,12 +18,46 @@ final class FakeBW {
 
     static let executable: URL = repositoryRoot.appendingPathComponent("Tests/Fixtures/bw-fake/bw")
 
-    /// Finds only the fake; no Homebrew bin goes on the child PATH, so the fake's `python3` is /usr/bin's.
-    static let locator = BWLocator(candidates: [executable.path], homebrewBinDirectories: [])
+    /// Finds only the fake. The child PATH starts with `pythonDirectory` instead of a Homebrew bin, so the fake's
+    /// `python3` is the interpreter itself.
+    static let locator = BWLocator(candidates: [executable.path], homebrewBinDirectories: [pythonDirectory.path])
 
-    /// Keys macOS's `/usr/bin/python3` shim adds before the fake runs, even under `env -i`.
-    /// The fake cannot see the environment it was started with, only the shim's, so these are
-    /// subtracted from what it logs.
+    /// A private folder whose `python3` links to the interpreter behind macOS's `/usr/bin/python3` shim, resolved
+    /// once per test run. Put first on a child's PATH, it lets `#!/usr/bin/env python3` skip the shim, which runs
+    /// `xcrun` on every launch: on a loaded CI runner every shim launch stalled for up to two minutes at once
+    /// (runs 39163810488, 39754731988), timing out each test that started the fake.
+    static let pythonDirectory: URL = {
+        let resolve = Process()
+        resolve.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        resolve.arguments = ["-f", "python3"]
+        let output = Pipe()
+        resolve.standardOutput = output
+        do { try resolve.run() } catch { preconditionFailure("xcrun -f python3 failed to start: \(error)") }
+        let path =
+            String(bytes: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        resolve.waitUntilExit()
+        precondition(resolve.terminationStatus == 0 && path.hasPrefix("/"), "xcrun -f python3 found no python3")
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vaultlight-fake-python-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try FileManager.default.createSymbolicLink(
+                atPath: directory.appendingPathComponent("python3").path, withDestinationPath: path)
+        } catch {
+            preconditionFailure("could not link python3 for the fake: \(error)")
+        }
+        return directory
+    }()
+
+    /// The child PATH for tests that start the fake without `BWClient`.
+    static let searchPath = "\(pythonDirectory.path):/usr/bin:/bin"
+
+    /// Keys the interpreter (and macOS's `/usr/bin/python3` shim, when the fake runs through it) adds before the
+    /// fake runs, even under `env -i`. The fake cannot see the environment it was started with, only the
+    /// interpreter's, so these are subtracted from what it logs.
     static let pythonShimKeys: Set<String> = [
         "CPATH", "LC_CTYPE", "LIBRARY_PATH", "MANPATH", "SDKROOT", "__CF_USER_TEXT_ENCODING",
     ]
@@ -71,8 +105,8 @@ final class FakeBW {
         try? FileManager.default.removeItem(at: dataDirectory)
     }
 
-    /// Generous timeouts for tests that wait for a call to finish. The fake's `python3` shim can take seconds to
-    /// start on a loaded CI runner; the spec values are asserted in `defaultTimeoutsMatchTheSpec`.
+    /// Generous timeouts for tests that wait for a call to finish. The fake can take seconds to start on a loaded
+    /// CI runner; the spec values are asserted in `defaultTimeoutsMatchTheSpec`.
     static let patientTimeouts = BWClient.Timeouts(standard: .seconds(120), sync: .seconds(120), killGrace: .seconds(2))
 
     /// A client wired to this fake's data directory. HOME also points there, away from the user's.
