@@ -54,6 +54,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon   # rendered by scripts/render-app-icon.swift
         MARKETING_VERSION: "0.1.0"        # scripts/release.sh overrides both from the tag
         CURRENT_PROJECT_VERSION: "1"
       configs:
